@@ -1,2 +1,6 @@
 .claude/
 .DS_Store
+
+# Real secrets — never upload. Only .env.example is tracked.
+.env
+.env.local
