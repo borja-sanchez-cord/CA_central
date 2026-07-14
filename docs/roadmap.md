@@ -6,6 +6,18 @@
 
 ---
 
+## What already exists (read this if you're picking up mid-build)
+
+Phases 0–1 are built and live. Before writing anything, orient here:
+
+- **Code:** all ingestion is in [`ingestion/ingest.py`](../ingestion/ingest.py) (single script, stdlib + `psycopg2`; deps in `ingestion/requirements.txt`). This is the working reference for how both APIs are actually called (pagination, auth, rate limits) — reuse its patterns, don't re-derive them.
+- **Runs:** daily via GitHub Actions (`.github/workflows/daily-run.yml`); secrets (API keys, DB URL) live in GitHub Secrets, never in the repo.
+- **DB connection:** direct Postgres via the `SUPABASE_DB_URL` transaction-pooler string, read from env or a local `.env` (see `.env.example`; real `.env` is gitignored).
+- **Tables already in Supabase (raw landing layer):** `raw_amplemarket_tasks`, `raw_amplemarket_calls`, `raw_hubspot_emails`, `raw_hubspot_meetings`, plus an `ingestion_runs` audit log. Each has a few extracted columns + the full source payload in a `raw` jsonb column. Primary key = source id; re-runs are idempotent (`ON CONFLICT DO NOTHING`). The **normalized** schema (activity fact + dimensions) does **not** exist yet — it begins at Phase 3.
+- **The normalized data model, source/dedup rules, and verified API facts** are in `spec.md` (§2, §3, §9). Every settled choice and every correction found during the build is in `decisions.md`. Read both before Phase 2+.
+
+---
+
 ## Working agreement (how to build this)
 
 The person owning this project is a **non-technical PM**. The building agent must follow these rules on its own:
@@ -75,11 +87,14 @@ The person owning this project is a **non-technical PM**. The building agent mus
 
 **Work:** normalize staging into the activity fact table + account/contact/rep dimensions (per spec); attach each activity to its resolved account + contact; materialize the single flat analytics view; keep the `body` column present but null (v2-ready). Connect Supabase↔GitHub for schema migrations here.
 
-**De-duplication & direction rules (confirmed during Phase 1 validation — the raw layer keeps everything; these are applied here on read):**
-- **Sent vs received email split.** Some HubSpot emails are inbound (sent *by the prospect*). Only outbound (sender = the rep) counts as rep *effort*; inbound replies are tracked separately as an *engagement/outcome* signal. (Validated on Yianni: 3 sent vs 2 received.)
+**De-duplication, attribution & direction rules (confirmed during Phase 1 validation — the raw layer keeps everything; these are applied here on read):**
+- **Attribute emails by SENDER, not `owner_id`.** Who sent an email = its `hs_email_from_email` address, matched to the rep's linked addresses (from the `/users` map, Phase 2). HubSpot's `hubspot_owner_id` is **not** reliable rep identity: one owner_id is shared across several reps (e.g. `538916758` carried Kamil, Yianni, George Lim, Nico, Ilaria), and one rep's mail spans many owner_ids (Dillon across 6). *Some* reps do have a clean owner_id (Yuvi, Katie, Joe) — but you cannot rely on it, so always attribute by sender.
+- **Sent vs received email split.** Direction follows from the sender: sender is one of the rep's addresses → outbound (counts as rep *effort*); otherwise inbound (a prospect reply, tracked separately as an *engagement/outcome* signal). (Validated on Yianni: 3 sent vs 2 received; Yuvi 13 Jul: 3 of 30 were inbound prospect replies.)
 - **Same-email cross-tool duplicates.** The same outbound email can be logged into HubSpot by *both* Apollo and AmpleMarket. Treat as one email when **subject + date + time all match** (sender used as an extra safeguard). (Validated on James Falconer: "Re: VLMs in identity", same date/time, logged by both.)
 - **AmpleMarket task ↔ send reconciliation.** AmpleMarket exposes email *tasks* but not *sends*; sends appear only as the HubSpot-synced copy. Reconcile so a task and its resulting send aren't counted twice, without dropping sends. (See decisions.md.)
-- **Call ↔ task overlap.** A `phone_call` task and its `/calls` record are the same call; collapse via `task_id`.
+- **Calls: count dial *attempts* and *conversations* separately — do NOT collapse on `task_id`.** A rep chasing one contact fires several call records in a tight window (Joe Turner 13 Jul: 4 calls in 123s to 4 *different numbers* for one contact = 4 attempts, 1 real conversation). `task_id` is **often null** on `/calls` (it was on all 4), so the earlier "collapse via `task_id`" idea does not work in practice → group a conversation by **same contact + tight time window**. A record is a genuine conversation only when `human = true`; an `answered = true` record can still be voicemail/IVR (machine). Surface **both** measures (attempts *and* connects/conversations) — collapsing to one erases real effort, counting all as conversations inflates volume.
+- **Calendar-invite fan-out.** One calendar action is logged **once per attendee** (Dillon 13 Jul: 6 identical Apollo "Updated invitation" rows, same timestamp, one per invitee) → collapse to a single activity (same subject + time, differing only by recipient).
+- **Exclude internal recipients.** Email/invite activity whose only recipients are internal `@encord.com` people is not outbound CA activity (Dillon's invite attendees were all internal) → don't count it as outreach.
 
 **Success metric:** one flat table returns every activity with account + contact + channel attached; a manual spot-check of one rep's day matches the source tools; no double-counting.
 
