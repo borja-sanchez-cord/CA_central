@@ -56,6 +56,7 @@ The person owning this project is a **non-technical PM**. The building agent mus
 
 **Work:**
 - **Reps (new — discovered in Phase 1):** agree an **authoritative CA roster** (AmpleMarket's `role` field is unreliable — active reps show as `admin`); **link each rep's multiple accounts + email addresses into one rep identity** (e.g. Nico `@encord.ai`/`@encord.com`, Yuvi ×2, Callum duplicate). Without this, a rep's own emails get misread as inbound and their activity is split.
+- **Build the rep-identity map from the AmpleMarket `/users` API.** It returns every rep's internal ID, email, and a `mailboxes` list linking their addresses — **for all reps, including those who logged no tasks.** This is **load-bearing for calls:** an AmpleMarket call record names its rep *only* by internal ID (no name/email), so a call can be attributed to a person **only** via this map — never from the rep's task history. (Validated 2026-07-14: Yuvi logged 0 tasks on 13 Jul, so his two answered calls were invisible until mapped via `/users`, then surfaced correctly and matched what he reported.)
 - **People:** match by exact lowercased email (fuzzy name fallback).
 - **Companies:** match by domain (fuzzy name fallback, guard free-email domains); **collapse HubSpot duplicate companies by domain (mandatory)**.
 - Persist an identity crosswalk for incremental daily joins.
@@ -64,7 +65,7 @@ The person owning this project is a **non-technical PM**. The building agent mus
 
 **PM check:** Claude shows you the match rate, the linked rep identities, and a short list of anything it couldn't confidently match, for your eyes.
 
-**Depends on:** Phase 1 + an authoritative CA roster (from Ray / sales leadership).
+**Depends on:** Phase 1. The **technical** rep-identity map (which internal ID = which person + addresses) is available **now** from the AmpleMarket `/users` API — *not* blocked on Ray. Ray / sales leadership are needed only to confirm **who counts as a CA** (team membership), which can proceed in parallel.
 
 ---
 
