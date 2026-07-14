@@ -46,7 +46,7 @@ The person owning this project is a **non-technical PM**. The building agent mus
 
 ---
 
-## Phase 1 — Daily ingestion (raw)  ✅ DONE (live daily cron; validated with 4+ reps)
+## Phase 1 — Daily ingestion (raw)  ✅ DONE (live daily cron; validated with 4+ reps) — 3 follow-up fixes queued (see below)
 
 **Plain terms:** Start automatically copying every rep's raw activity — calls, LinkedIn actions, emails, meetings — out of the two tools into our database, once a day. Just a faithful copy at this stage, not yet cleaned or merged.
 
@@ -59,6 +59,11 @@ The person owning this project is a **non-technical PM**. The building agent mus
 **Depends on:** Phase 0.
 
 **Corrections logged during build (see `decisions.md`):** paginate AmpleMarket `/users` (was capped at 20); **keep** AmpleMarket-synced HubSpot emails (AmpleMarket exposes email *tasks*, not *sends*, so dropping them undercounted). De-dup/direction rules moved to Phase 3.
+
+**TODO — follow-up fixes found in code review (2026-07-14, not yet applied; small, low-risk, all in `ingestion/ingest.py`). See `decisions.md` for full detail.**
+1. **Widen the daily pull to the last ~3–4 days, not just yesterday.** Some HubSpot/AmpleMarket records land a few hours after we've already taken that day's snapshot, so they're silently never captured (confirmed: 13 Jul emails were 1377 captured vs 1379 live the next day; tasks grew 185→304 across re-runs). Safe fix — re-runs are already proven duplicate-free.
+2. **Capture HubSpot email recipient + meeting attendees/outcome — currently not pulled at all.** The stored `raw` payload only has the fields we explicitly request (sender, subject, timing, source, owner) — not who an email went to or who was in a meeting. This blocks Phase 3 rules already written (internal-recipient exclusion, invite fan-out, attaching an email to its prospect) and blocks meeting→rep attribution entirely (no attendees, and `owner_id` is proven unreliable). Needs: add the fields to the API pull, then a one-time re-pull of the days already ingested to backfill.
+3. **Isolate errors per job + note a scheduling risk.** One failing job (e.g. HubSpot down) currently aborts the whole day's run; make the four jobs (AmpleMarket tasks/calls, HubSpot emails/meetings) fail independently. Separately: GitHub auto-disables scheduled workflows after ~60 days of repo inactivity — worth a periodic check, not a code fix. Mostly covered by fix #1 above (a missed day gets swept up on the next run's lookback).
 
 ---
 
