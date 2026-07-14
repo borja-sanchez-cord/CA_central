@@ -1,0 +1,25 @@
+name: Daily activity sync
+
+# The "daily alarm clock" for the CA Activity Visibility project.
+# Phase 0: this does NOTHING yet except prove it can fire on schedule and log a run.
+# Later phases will add the real work (pulling activity from AmpleMarket + HubSpot).
+
+on:
+  schedule:
+    # Runs every day at 06:00 UTC. (Times in GitHub cron are always UTC.)
+    - cron: "0 6 * * *"
+  # Lets us press a button to run it on demand, for testing.
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log that the scheduled job fired
+        run: |
+          echo "=================================================="
+          echo " CA Activity Visibility — scheduled run"
+          echo " Fired at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo " Trigger:  ${{ github.event_name }}"
+          echo " Status:   Phase 0 skeleton — no work performed yet."
+          echo "=================================================="

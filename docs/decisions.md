@@ -40,5 +40,8 @@ Data API on (needed for the dashboard); auto-expose new tables OFF (data is sens
 **DB schema managed via Git migrations from Phase 3 onward.**
 Connect Supabase↔GitHub at Phase 3 (when tables first exist), not before — nothing to sync until then. Keeps every schema change tracked and reversible instead of manual UI edits. Credentials/keys never committed; use secrets/env vars.
 
+**Cloud cron platform: GitHub Actions.**
+The daily scheduled job runs as a GitHub Actions workflow (`.github/workflows/daily-run.yml`). Chosen over Supabase scheduled functions / external schedulers because the repo already lives on GitHub, it's free at this usage, requires no new account or infra, and its encrypted Secrets store holds the API keys for later phases (never committed). Runs in the cloud so nothing depends on a local machine. Phase 0 version logs a run only; real ingestion is added in Phase 1.
+
 **Build model: Claude Code builds each phase; owner acts as non-technical PM.**
 Technical figuring-out (schemas, API calls, pagination, error handling) is Claude's per phase — not pre-written, to avoid over-planning. The roadmap therefore carries a working agreement and a plain per-phase check the PM can personally verify.
