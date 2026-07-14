@@ -10,9 +10,11 @@ Design notes (see docs/spec.md, docs/decisions.md):
   few extracted columns for convenience. No normalization here (that's Phase 3).
 - Idempotent: primary key = source id; INSERT ... ON CONFLICT DO NOTHING, so a
   second run of the same day inserts 0 new rows.
-- Source-of-truth split (load-bearing): AmpleMarket owns its channels, so
-  HubSpot emails that were *synced from AmpleMarket* are skipped, as are warmup
-  emails. Everything else (manual Gmail, Apollo, etc.) is kept raw.
+- Faithful raw copy: HubSpot emails are kept regardless of origin (each tagged
+  via object_source/detail), because AmpleMarket's API does NOT expose sent
+  emails -- the HubSpot copy is the only record of them. Only genuine warmup
+  noise is filtered out. Precise task<->send de-duplication is deferred to
+  Phase 3, where the full picture is available.
 - AmpleMarket ignores date filters, so we page newest-first and stop once we
   cross below the target day.
 
@@ -28,9 +30,8 @@ from psycopg2.extras import execute_values, Json
 AMPLE_BASE = "https://api.amplemarket.com"
 HS_BASE = "https://api.hubapi.com"
 
-# HubSpot emails whose source is one of these are AmpleMarket-synced -> skip (dedup).
-AMPLEMARKET_SOURCE_DETAILS = {"amplemarket"}
 # Warmup / deliverability noise -> skip. Matched (case-insensitive) inside the subject.
+# (This also catches AmpleMarket's own warmup emails, e.g. "amplemarketwarmupemail:".)
 WARMUP_SUBJECT_MARKERS = ("lemwarmup", "lemwarm", "amplemarketwarmup", "warmupemail")
 
 
@@ -289,14 +290,17 @@ def ingest_hs_emails(conn, token, day_start, day_end, activity_date):
              "hs_object_source_detail_1", "hubspot_owner_id", "hs_email_from_email"]
     from_ms = int(day_start.timestamp() * 1000)
     to_ms = int(day_end.timestamp() * 1000)
-    rows, fetched, excl = [], 0, {"amplemarket_synced": 0, "warmup": 0}
+    rows, fetched, excl = [], 0, {"warmup": 0}
     for r in hs_search("emails", token, props, from_ms, to_ms):
         fetched += 1
         p = r["properties"]
         detail = (p.get("hs_object_source_detail_1") or "")
         subject = (p.get("hs_email_subject") or "")
-        if detail.strip().lower() in AMPLEMARKET_SOURCE_DETAILS:
-            excl["amplemarket_synced"] += 1; continue
+        # NOTE: AmpleMarket-synced emails are KEPT (their `object_source_detail`
+        # tags them as "Amplemarket"). AmpleMarket's API does not expose sent
+        # emails, so these HubSpot copies are the only record of them — dropping
+        # them here undercounted real rep emails. Precise task<->send dedup is
+        # deferred to Phase 3. Only genuine warmup noise is filtered out.
         if any(m in subject.lower() for m in WARMUP_SUBJECT_MARKERS):
             excl["warmup"] += 1; continue
         rows.append((
