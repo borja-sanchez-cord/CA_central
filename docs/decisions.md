@@ -40,6 +40,15 @@ Data API on (needed for the dashboard); auto-expose new tables OFF (data is sens
 **DB schema managed via Git migrations from Phase 3 onward.**
 Connect Supabase↔GitHub at Phase 3 (when tables first exist), not before — nothing to sync until then. Keeps every schema change tracked and reversible instead of manual UI edits. Credentials/keys never committed; use secrets/env vars.
 
+**Phase 1 raw ingestion: land faithful per-source copies, keyed by source id, idempotent.**
+Four raw landing tables (`raw_amplemarket_tasks`, `raw_amplemarket_calls`, `raw_hubspot_emails`, `raw_hubspot_meetings`) plus an `ingestion_runs` audit log. Each row stores a few extracted columns for convenience plus the full source payload in a `raw` jsonb column, so nothing is lost before Phase 3 normalization. Primary key = source id; `INSERT ... ON CONFLICT DO NOTHING`, so re-running a day inserts zero duplicates. AmpleMarket ignores date filters, so we page newest-first and stop once we cross below the target day (tasks keyed on `finished_on` with `status=completed`; calls on `start_date`).
+
+**HubSpot email exclusions at ingestion (source-of-truth split).**
+Skip emails whose `hs_object_source_detail_1` = `Amplemarket` (already counted in AmpleMarket — prevents double-counting) and warmup noise (subject contains `lemwarmup`/`lemwarm`/`amplemarketwarmup`/`warmupemail`). Everything else is kept raw, including manual Gmail (`hs_object_source` = EMAIL) and Apollo-sourced emails. **Open question for the counting phase:** Apollo is a second outreach tool present in HubSpot but not in the plan — decide later whether Apollo emails count as rep activity. Exclusion counts are recorded per run in `ingestion_runs`.
+
+**Supabase access for ingestion: direct Postgres connection (transaction pooler).**
+The ingestion job connects with the `SUPABASE_DB_URL` transaction-pooler connection string (needed for creating tables + bulk writes, which the REST API can't do). The earlier `SUPABASE_KEY` (service key) remains for the dashboard/REST side later. Both stored as secrets, never committed.
+
 **Cloud cron platform: GitHub Actions.**
 The daily scheduled job runs as a GitHub Actions workflow (`.github/workflows/daily-run.yml`). Chosen over Supabase scheduled functions / external schedulers because the repo already lives on GitHub, it's free at this usage, requires no new account or infra, and its encrypted Secrets store holds the API keys for later phases (never committed). Runs in the cloud so nothing depends on a local machine. Phase 0 version logs a run only; real ingestion is added in Phase 1.
 
