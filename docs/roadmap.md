@@ -70,7 +70,7 @@ The person owning this project is a **non-technical PM**. The building agent mus
 
 **De-duplication & direction rules (confirmed during Phase 1 validation — the raw layer keeps everything; these are applied here on read):**
 - **Sent vs received email split.** Some HubSpot emails are inbound (sent *by the prospect*). Only outbound (sender = the rep) counts as rep *effort*; inbound replies are tracked separately as an *engagement/outcome* signal. (Validated on Yianni: 3 sent vs 2 received.)
-- **Same-email cross-tool duplicates.** The same outbound email can be logged into HubSpot by *both* Apollo and AmpleMarket. Collapse to one using sender + subject + timestamp (same minute). (Validated on James Falconer: "Re: VLMs in identity" logged by both.)
+- **Same-email cross-tool duplicates.** The same outbound email can be logged into HubSpot by *both* Apollo and AmpleMarket. Treat as one email when **subject + date + time all match** (sender used as an extra safeguard). (Validated on James Falconer: "Re: VLMs in identity", same date/time, logged by both.)
 - **AmpleMarket task ↔ send reconciliation.** AmpleMarket exposes email *tasks* but not *sends*; sends appear only as the HubSpot-synced copy. Reconcile so a task and its resulting send aren't counted twice, without dropping sends. (See decisions.md.)
 - **Call ↔ task overlap.** A `phone_call` task and its `/calls` record are the same call; collapse via `task_id`.
 
