@@ -66,7 +66,13 @@ The person owning this project is a **non-technical PM**. The building agent mus
 
 **Plain terms:** Turn the raw, mismatched copies into one clean table where every row is a single thing a rep did — tagged with who, which company, which channel. The tidy foundation everything else reads from.
 
-**Work:** normalize staging into the activity fact table + account/contact/rep dimensions (per spec); apply the source-of-truth split so synced activity isn't double-counted; attach each activity to its resolved account + contact; materialize the single flat analytics view; keep the `body` column present but null (v2-ready). Connect Supabase↔GitHub for schema migrations here.
+**Work:** normalize staging into the activity fact table + account/contact/rep dimensions (per spec); attach each activity to its resolved account + contact; materialize the single flat analytics view; keep the `body` column present but null (v2-ready). Connect Supabase↔GitHub for schema migrations here.
+
+**De-duplication & direction rules (confirmed during Phase 1 validation — the raw layer keeps everything; these are applied here on read):**
+- **Sent vs received email split.** Some HubSpot emails are inbound (sent *by the prospect*). Only outbound (sender = the rep) counts as rep *effort*; inbound replies are tracked separately as an *engagement/outcome* signal. (Validated on Yianni: 3 sent vs 2 received.)
+- **Same-email cross-tool duplicates.** The same outbound email can be logged into HubSpot by *both* Apollo and AmpleMarket. Collapse to one using sender + subject + timestamp (same minute). (Validated on James Falconer: "Re: VLMs in identity" logged by both.)
+- **AmpleMarket task ↔ send reconciliation.** AmpleMarket exposes email *tasks* but not *sends*; sends appear only as the HubSpot-synced copy. Reconcile so a task and its resulting send aren't counted twice, without dropping sends. (See decisions.md.)
+- **Call ↔ task overlap.** A `phone_call` task and its `/calls` record are the same call; collapse via `task_id`.
 
 **Success metric:** one flat table returns every activity with account + contact + channel attached; a manual spot-check of one rep's day matches the source tools; no double-counting.
 

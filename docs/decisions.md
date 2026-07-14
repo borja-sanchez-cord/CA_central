@@ -40,6 +40,14 @@ Data API on (needed for the dashboard); auto-expose new tables OFF (data is sens
 **DB schema managed via Git migrations from Phase 3 onward.**
 Connect Supabase↔GitHub at Phase 3 (when tables first exist), not before — nothing to sync until then. Keeps every schema change tracked and reversible instead of manual UI edits. Credentials/keys never committed; use secrets/env vars.
 
+**Phase 3 de-duplication & direction rules (confirmed, discovered during Phase 1 rep validation).**
+The raw layer deliberately keeps everything; these are applied when building the unified activity model:
+1. **Sent vs received emails** — only outbound (sender = rep) counts as rep *effort*; inbound prospect replies are tracked separately as an engagement/outcome signal. (Yianni 2026-07-13: 3 sent, 2 received.)
+2. **Same-email cross-tool duplicates** — the same outbound email can be logged into HubSpot by both Apollo and AmpleMarket; collapse via sender + subject + same-minute timestamp. (James Falconer 2026-07-13: "Re: VLMs in identity" double-logged.) Ties into the open Apollo decision.
+3. **AmpleMarket task↔send reconciliation** — AmpleMarket exposes email tasks but not sends (sends only via the HubSpot copy); reconcile so a task and its send aren't double-counted, without dropping sends.
+4. **Call↔task overlap** — a `phone_call` task and its `/calls` record are the same call; collapse via `task_id`.
+Deferred here (not in raw) because it needs identity resolution (Phase 2) and the unified model to do correctly.
+
 **Phase 1 raw ingestion: land faithful per-source copies, keyed by source id, idempotent.**
 Four raw landing tables (`raw_amplemarket_tasks`, `raw_amplemarket_calls`, `raw_hubspot_emails`, `raw_hubspot_meetings`) plus an `ingestion_runs` audit log. Each row stores a few extracted columns for convenience plus the full source payload in a `raw` jsonb column, so nothing is lost before Phase 3 normalization. Primary key = source id; `INSERT ... ON CONFLICT DO NOTHING`, so re-running a day inserts zero duplicates. AmpleMarket ignores date filters, so we page newest-first and stop once we cross below the target day (tasks keyed on `finished_on` with `status=completed`; calls on `start_date`).
 
