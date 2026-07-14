@@ -34,31 +34,37 @@ The person owning this project is a **non-technical PM**. The building agent mus
 
 ---
 
-## Phase 1 — Daily ingestion (raw)
+## Phase 1 — Daily ingestion (raw)  ✅ DONE (live daily cron; validated with 4+ reps)
 
 **Plain terms:** Start automatically copying every rep's raw activity — calls, LinkedIn actions, emails, meetings — out of the two tools into our database, once a day. Just a faithful copy at this stage, not yet cleaned or merged.
 
-**Work:** AmpleMarket daily pull of calls + tasks (per user), capturing channel, timestamp, automatic flag, contact; HubSpot daily pull of emails + meetings only, excluding `lemwarmup` and `amplemarket`-sourced records; land both in raw staging; re-runs must not duplicate; respect rate limits (HubSpot Search ~4 req/sec is the constraint).
+**Work:** AmpleMarket daily pull of calls + tasks (per user, **paginating all users**), capturing channel, timestamp, automatic flag, contact, sequence name; HubSpot daily pull of emails + meetings, **keeping all origins tagged (Amplemarket / Apollo / manual Gmail)** and dropping only warmup noise; land both in raw staging; re-runs must not duplicate; respect rate limits (HubSpot Search ~4 req/sec).
 
 **Success metric:** a daily run lands a full day of activity from both sources; re-running the same day creates no duplicates.
 
-**PM check:** Claude shows you a count of activities pulled per rep for one day, and confirms running it twice didn't double the numbers.
+**PM check:** Claude shows you a count of activities pulled per rep for one day, and confirms running it twice didn't double the numbers. *(Done — spot-checked itemised days with Yuvi, Andrew, Yianni, James Falconer, Nico; confirmed by 4+ CAs.)*
 
 **Depends on:** Phase 0.
+
+**Corrections logged during build (see `decisions.md`):** paginate AmpleMarket `/users` (was capped at 20); **keep** AmpleMarket-synced HubSpot emails (AmpleMarket exposes email *tasks*, not *sends*, so dropping them undercounted). De-dup/direction rules moved to Phase 3.
 
 ---
 
 ## Phase 2 — Identity resolution + account de-duplication
 
-**Plain terms:** Make sure "the same person" and "the same company" are recognised as one, even across two systems and despite HubSpot sometimes storing a company twice. Without this, an account's activity could split across duplicates and coverage numbers would be wrong.
+**Plain terms:** Make sure "the same person," "the same company," **and "the same rep"** are each recognised as one — even across two systems, despite HubSpot sometimes storing a company twice, and despite a rep having more than one login/email. Without this, activity splits across duplicates and the numbers come out wrong.
 
-**Work:** match people by exact lowercased email (fuzzy name fallback); match companies by domain (fuzzy name fallback, guard free-email domains); collapse HubSpot duplicate companies by domain (mandatory); persist an identity crosswalk for incremental daily joins.
+**Work:**
+- **Reps (new — discovered in Phase 1):** agree an **authoritative CA roster** (AmpleMarket's `role` field is unreliable — active reps show as `admin`); **link each rep's multiple accounts + email addresses into one rep identity** (e.g. Nico `@encord.ai`/`@encord.com`, Yuvi ×2, Callum duplicate). Without this, a rep's own emails get misread as inbound and their activity is split.
+- **People:** match by exact lowercased email (fuzzy name fallback).
+- **Companies:** match by domain (fuzzy name fallback, guard free-email domains); **collapse HubSpot duplicate companies by domain (mandatory)**.
+- Persist an identity crosswalk for incremental daily joins.
 
-**Success metric:** each contact and company resolves to a single ID; HubSpot company duplicates collapsed; a match rate and an unresolved-records list are produced.
+**Success metric:** each contact, company, **and rep** resolves to a single ID; HubSpot company duplicates collapsed; rep accounts/addresses linked; a match rate and an unresolved-records list are produced.
 
-**PM check:** Claude shows you the match rate and a short list of anything it couldn't confidently match, for your eyes.
+**PM check:** Claude shows you the match rate, the linked rep identities, and a short list of anything it couldn't confidently match, for your eyes.
 
-**Depends on:** Phase 1.
+**Depends on:** Phase 1 + an authoritative CA roster (from Ray / sales leadership).
 
 ---
 

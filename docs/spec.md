@@ -40,7 +40,7 @@
 | rep_id | FK → rep | who performed it |
 | account_id | FK → account | resolved via contact domain (Ample has no company field) |
 | contact_id | FK → contact | resolved person |
-| channel | enum | `call` \| `meeting` \| `manual_email` \| `auto_email` \| `li_message` \| `li_connect` |
+| channel | enum | normalized: `call` \| `meeting` \| `manual_email` \| `auto_email` \| `li_message` \| `li_connect` \| `li_other` \| `whatsapp` \| `sms`. Raw layer stores the native AmpleMarket type verbatim (`email`, `phone_call`, `linkedin_visit`/`follow`/`like_last_post`/`message`/`voice_message`/`video_message`/`connect`, `whatsapp`, `sms`, `custom_task`); Phase 3 maps to this enum |
 | is_automated | bool | AmpleMarket `automatic` flag (authoritative); HubSpot = proxy, lower confidence |
 | is_automated_confidence | enum | `high` (Ample) \| `low` (HubSpot proxy) |
 | occurred_at | timestamp | activity date/time |
@@ -109,17 +109,25 @@ Daily runs are incremental joins against this, not re-resolution.
 
 ## 3. Source Rules (dedup — load-bearing)
 
-AmpleMarket activity **syncs into HubSpot**, so naive merging double-counts.
+AmpleMarket activity **syncs into HubSpot**, so naive merging double-counts. **Key correction (validated against live data):** AmpleMarket's REST API exposes email **tasks** (to-dos), *not* the emails actually **sent**. The only record of a sent AmpleMarket email is the copy that syncs into HubSpot. So HubSpot is *not* safely discardable for AmpleMarket emails.
 
-- **AmpleMarket = source of truth** for its channels (LI messages, LI connects, sequenced/auto emails, ample-logged calls) — pulled from REST `/calls` and `/tasks` (per `user_id`).
-- **HubSpot = source of truth** only for **non-Ample activity**: manual Gmail emails + meetings — pulled from separate `/calls`, `/meetings`, `/emails` objects.
-- HubSpot ingestion **excludes** `amplemarket`-sourced records and `lemwarmup`, mirroring the existing HubSpot report.
+**Raw layer (Phase 1) — keep everything, faithfully:**
+- Pull AmpleMarket `/tasks` (per `user_id`, `status=completed`) + `/calls`; capture channel, `automatic` flag, timestamp, contact, sequence name.
+- Pull HubSpot `emails` + `meetings`; keep **all** origins (each tagged via `hs_object_source` / `hs_object_source_detail_1` = `Amplemarket` / `Apollo Integration` / manual Gmail).
+- Only genuine **warmup** noise is dropped at ingestion (subject markers). *Nothing else is discarded — a raw layer must not throw away data it cannot recreate.*
+
+**Unified model (Phase 3) — de-duplicate on read, once the full picture exists:**
+- **Same-email cross-tool duplicate:** one outbound email can be logged by both Apollo and AmpleMarket → collapse when **subject + date + time** match (sender as safeguard).
+- **AmpleMarket task ↔ send:** reconcile the email *task* with its HubSpot-synced *send* so they aren't counted twice, without dropping the send.
+- **Call ↔ task:** a `phone_call` task and its `/calls` record are the same call → collapse via `task_id`.
+- **Sent vs received:** only outbound emails (sender = rep) count as rep *effort*; inbound prospect replies are tracked separately as an engagement/outcome signal.
+- **Apollo (open decision):** Apollo is a *second* outreach tool present in HubSpot but not in the original plan. Decide whether Apollo activity counts as CA activity before finalizing counts.
 
 ---
 
 ## 4. Derived Fields
 
-- **is_automated** — AmpleMarket `automatic` boolean (high confidence). HubSpot has no clean sequence flag → infer from `hs_object_source`, tag `low` confidence.
+- **is_automated** — AmpleMarket `automatic` boolean (high confidence). HubSpot has no clean sequence flag → infer from `hs_object_source` / `hs_object_source_detail_1` (e.g. tool-synced `Amplemarket` / `Apollo Integration` lean automated; manual Gmail `EMAIL` leans manual), tagged `low` confidence.
 - **seniority_bucket** — **rules-first, LLM fallback, cached.** Dictionary/regex handles the common 80–90% (CxO→C-level, VP/SVP/EVP→VP, Director/Head-of→Director, Manager→Manager, else IC). Only unmatched titles hit an LLM. **Every (raw title → bucket) mapping is cached — classified once, ever.** Raw title preserved separately.
 - **account coverage** — accounts touched vs. `target_account_count`.
 
@@ -166,10 +174,15 @@ The `body` field exists in the schema from day one but stays null in v1. v2 = **
 
 ---
 
-## 9. Resolved Technical Facts (from research)
+## 9. Resolved Technical Facts (verified against live APIs, Phase 1)
 
-- **AmpleMarket:** no single events endpoint. REST `/tasks` (needs `user_id` per call) + `/calls` give channel + `automatic` flag; **no company field** → join via contact email domain. MCP just wraps REST — not used. Bodies only via webhook (v2).
-- **HubSpot:** calls/meetings/emails are separate objects; associate to contact + company via associations; filter by `hs_timestamp`, exclude by `hs_email_subject` / `hs_object_source`. Private-app token auth. Search API ~4 req/sec is the constraint.
-- **Identity:** person = lowercased email (exact); company = normalized domain; fuzzy name match only as fallback (rapidfuzz ≥90 accept, 80–90 review); guard free-email domains. Cached in `identity_crosswalk`.
+- **AmpleMarket auth/base:** `https://api.amplemarket.com`, `Authorization: Bearer <key>`. Cursor pagination via `_links.next`; follow it — page sizes are capped (~20) regardless of `page[size]`.
+- **AmpleMarket `/users`:** **paginated (20/page) — must follow the cursor** (there are ~54 users total, not 20). Do not assume one page. `role` field is **unreliable for identifying CAs** (active reps appear as `admin`; some have duplicate accounts) — see rep-identity note below.
+- **AmpleMarket `/tasks`:** requires `user_id`; pass `status=completed` to get *done* activity. **No server-side date filter** (date params are ignored) → page newest-first and stop once past the target day. Each task carries `type` (channel), `automatic`, `finished_on`, `sequence_name`, and `contact` (id/name/email).
+- **AmpleMarket `/calls`:** global list, also accepts `user_id` filter; no date filter → page newest-first. Carries `duration`, `answered`, `human` (human vs machine/voicemail), `task_id`, `contact`. **A `phone_call` task and its `/calls` record are the same call** (link via `task_id`).
+- **AmpleMarket exposes email *tasks*, not *sends*.** Automated/sequence email sends never appear as tasks — their only REST-accessible record is the HubSpot-synced copy (§3). No company field → join via contact email domain. Bodies only via webhook (v2). MCP just wraps REST — not used.
+- **HubSpot:** calls/meetings/emails are separate objects; Search API filters by `hs_timestamp` (GTE/LT), sort + paginate via `paging.next.after`. **`hs_object_source_detail_1` distinguishes the tool** (`Amplemarket` / `Apollo Integration` / blank = manual Gmail where `hs_object_source` = `EMAIL`). Emails can be **inbound** — check sender (`hs_email_from_email`) vs the rep's addresses. Owner = `hubspot_owner_id`. Private-app token auth; Search ~4 req/sec; **10,000-record cap per Search query** (fine per-day; chunk large backfills).
+- **Rep identity spans multiple accounts/addresses.** A single rep can have >1 AmpleMarket account and different email domains across systems (e.g. Nico: `@encord.ai` in AmpleMarket vs `@encord.com` in HubSpot; Yuvi & Callum have duplicate accounts). Phase 2 must **link a rep's accounts/addresses into one identity**, or their own emails get misclassified as inbound and their activity is split.
+- **Identity (contacts/companies):** person = lowercased email (exact); company = normalized domain; fuzzy name match only as fallback (rapidfuzz ≥90 accept, 80–90 review); guard free-email domains. Cached in `identity_crosswalk`.
 - **Titles:** rules-first + LLM fallback + cache (accuracy high, cost near-zero after warm-up).
-- **Automated flag:** AmpleMarket authoritative; HubSpot proxy only.
+- **Automated flag:** AmpleMarket `automatic` authoritative; HubSpot proxy only (source-based).

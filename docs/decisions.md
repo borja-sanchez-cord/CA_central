@@ -48,6 +48,12 @@ The raw layer deliberately keeps everything; these are applied when building the
 4. **Call↔task overlap** — a `phone_call` task and its `/calls` record are the same call; collapse via `task_id`.
 Deferred here (not in raw) because it needs identity resolution (Phase 2) and the unified model to do correctly.
 
+**Rep identity: authoritative CA roster required; link each rep's multiple accounts/addresses. (OPEN — needed for Phase 2.)**
+AmpleMarket's `role` field cannot define the CA team — active reps appear as `admin` (e.g. Yuvi, Joe Turner, James Falconer), and some reps have duplicate/multiple accounts. A rep can also use different email domains across systems (Nico: `@encord.ai` in AmpleMarket vs `@encord.com` in HubSpot). Decision: obtain an **authoritative CA roster from Ray / sales leadership** (cross-referenced with HubSpot `target account owner`), and in Phase 2 **link each rep's accounts + email addresses into one rep identity**. Without this, a rep's own emails are misclassified as inbound and their activity is split across duplicates. Discovered during Phase 1 rep validation.
+
+**Apollo is a third activity source in HubSpot. (OPEN — decide before finalizing counts.)**
+Beyond AmpleMarket and manual Gmail, HubSpot contains substantial **Apollo**-sourced emails (a second outreach tool, tagged `hs_object_source_detail_1 = Apollo Integration`). The original plan named only AmpleMarket. Kept raw for now (tagged by origin). Decide whether Apollo activity counts as CA activity; note the same email can be logged by *both* Apollo and AmpleMarket (collapse via subject+date+time — see Phase 3 rules).
+
 **Phase 1 raw ingestion: land faithful per-source copies, keyed by source id, idempotent.**
 Four raw landing tables (`raw_amplemarket_tasks`, `raw_amplemarket_calls`, `raw_hubspot_emails`, `raw_hubspot_meetings`) plus an `ingestion_runs` audit log. Each row stores a few extracted columns for convenience plus the full source payload in a `raw` jsonb column, so nothing is lost before Phase 3 normalization. Primary key = source id; `INSERT ... ON CONFLICT DO NOTHING`, so re-running a day inserts zero duplicates. AmpleMarket ignores date filters, so we page newest-first and stop once we cross below the target day (tasks keyed on `finished_on` with `status=completed`; calls on `start_date`).
 
