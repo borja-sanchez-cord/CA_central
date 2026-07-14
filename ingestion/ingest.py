@@ -179,8 +179,8 @@ def log_run(conn, **kw):
 
 # ----------------------------------------------------------------------------- AmpleMarket
 def ample_users(key):
-    data = http_get(f"{AMPLE_BASE}/users", {"Authorization": f"Bearer {key}"})
-    return data.get("users", [])
+    # /users is paginated (20 per page) — must follow the cursor to get everyone.
+    return list(ample_paged("/users?page[size]=20", key, "users"))
 
 
 def ample_paged(path, key, list_field):
