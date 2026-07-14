@@ -1,6 +1,6 @@
 # CA Activity Visibility — Context & Background
 
-**Read this first.** It explains *why* this project exists and what "good" looks like, so anyone (human or agent) can pick up the work without prior context. The technical "how" is in `spec.md`, `research.md`, and `roadmap.md`.
+**Read this first.** It explains *why* this project exists and what "good" looks like, so anyone (human or agent) can pick up the work without prior context. The technical "how" is in `spec.md` and `roadmap.md`.
 
 ---
 

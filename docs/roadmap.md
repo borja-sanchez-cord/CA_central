@@ -1,6 +1,6 @@
 # CA Activity Visibility — Roadmap
 
-**Start here if you're building.** Read `context.md` (why this exists), `spec.md` (the end-state design), and `research.md` (verified API facts) before starting. `decisions.md` records every settled choice — don't reverse one without adding a superseding entry.
+**Start here if you're building.** Read `context.md` (why this exists) and `spec.md` (the end-state design, including verified AmpleMarket + HubSpot API facts in §9) before starting. `decisions.md` records every settled choice — don't reverse one without adding a superseding entry.
 
 **8 phases (0–7).** Each is self-contained, ships something verifiable, and depends only on the phases before it. Phases 0–3 build the data foundation, Phase 4 delivers the first output leaders can use, and 5–7 add depth, quality, and the dashboard.
 
