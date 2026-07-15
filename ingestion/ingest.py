@@ -6,12 +6,14 @@ Copies raw activity from AmpleMarket (tasks + calls) and HubSpot (emails +
 meetings) into raw landing tables in Supabase/Postgres. A scheduled run (no
 date argument) sweeps the last LOOKBACK_DAYS days, because both sources keep
 surfacing a finished day's records for days afterwards (observed live).
-Scheduled runs also sync the HubSpot entity dimensions (Phase 1.5): a full
+Scheduled runs also sync the entity dimensions (Phase 1.5): a full
 incremental mirror of companies, an activity-scoped mirror of contacts (only
-people who appear in real rep activity — see the entity section below), and a
+people who appear in real rep activity — see the entity section below), a
 full mirror of owners + their team membership (the source of truth for the CA
 roster; Phase 2 derives the roster from it, subtracting parent teams per the
-config_ca_teams policy, which is seeded from config/ca_teams.json each run).
+config_ca_teams policy, which is seeded from config/ca_teams.json each run),
+and a full refresh of AmpleMarket users (the only map from a call's internal
+user id to a person).
 
 Design notes (see docs/spec.md, docs/decisions.md):
 - RAW copy: store the source payload faithfully in a `raw` jsonb column plus a
@@ -159,6 +161,10 @@ alter table raw_hubspot_emails add column if not exists body_html text;
 -- recipient columns added 2026-07-15 (raw format varies: 'a@b.com' / 'Name <a@b.com>'; normalize in Phase 3)
 alter table raw_hubspot_emails add column if not exists to_email text;
 alter table raw_hubspot_emails add column if not exists cc_email text;
+-- bcc added 2026-07-15 audit (going-forward capture): present in the raw JSON
+-- (37 live rows) but had no column; Phase 3's internal-only-recipient exclusion
+-- must evaluate to + cc + bcc (live CA emails carry prospects on cc/bcc only).
+alter table raw_hubspot_emails add column if not exists bcc_email text;
 create table if not exists raw_hubspot_meetings (
     id text primary key,
     hs_timestamp timestamptz,
@@ -269,6 +275,10 @@ def upsert(conn, table, columns, rows, update_cols=None):
         return 0
     cols = ", ".join(columns)
     if update_cols:
+        # In-statement duplicate ids crash DO UPDATE ("cannot affect row a second
+        # time"); restart paths can re-yield rows — keep the LAST occurrence, the
+        # freshest state (audit 2026-07-15). DO NOTHING tolerates dups as-is.
+        rows = list({r[0]: r for r in rows}.values())
         setters = ", ".join(f"{c} = excluded.{c}" for c in update_cols)
         conflict = f"on conflict (id) do update set {setters}"
     else:
@@ -323,7 +333,10 @@ def ample_paged(path, key, list_field):
 
 def ingest_ample_tasks(conn, key, day_start, day_end, activity_date):
     users = ample_users(key)
-    rows, fetched, skipped_users = [], 0, 0
+    # skipped_users collects the IDS, not just a count: they flow into
+    # ingestion_runs.exclusion_breakdown, so a persistently-400ing ACTIVE user
+    # (whose tasks would vanish silently) is visible there (audit 2026-07-15).
+    rows, fetched, skipped_users = [], 0, []
     for u in users:
         uid = u.get("id")
         if not uid:
@@ -350,15 +363,16 @@ def ingest_ample_tasks(conn, key, day_start, day_end, activity_date):
                     break
         except urllib.error.HTTPError as e:
             if e.code == 400:        # e.g. deactivated/invalid user in the user list
-                skipped_users += 1
+                skipped_users.append(uid)
                 continue
             raise
     if skipped_users:
-        print(f"  (skipped {skipped_users} invalid/deactivated AmpleMarket users)")
+        print(f"  (skipped {len(skipped_users)} invalid/deactivated AmpleMarket users)")
     cols = ["id", "user_id", "user_email", "type", "status", "automatic", "due_on",
             "finished_on", "contact_id", "contact_email", "contact_name", "activity_date", "raw"]
     new = upsert(conn, "raw_amplemarket_tasks", cols, rows)
-    return fetched, new
+    excl = {"skipped_users": skipped_users} if skipped_users else None
+    return fetched, new, excl
 
 
 def ingest_ample_calls(conn, key, day_start, day_end, activity_date):
@@ -436,12 +450,13 @@ def ingest_hs_emails(conn, token, day_start, day_end, activity_date):
             p.get("hs_email_direction"), p.get("hs_object_source"), detail or None,
             p.get("hubspot_owner_id"), p.get("hs_email_from_email"),
             p.get("hs_email_to_email") or None, p.get("hs_email_cc_email") or None,
+            p.get("hs_email_bcc_email") or None,
             p.get("hs_body_preview") or None, p.get("hs_email_html") or None,
             activity_date, Json(r),
         ))
     cols = ["id", "hs_timestamp", "subject", "direction", "object_source",
             "object_source_detail", "owner_id", "from_email", "to_email", "cc_email",
-            "body_preview", "body_html", "activity_date", "raw"]
+            "bcc_email", "body_preview", "body_html", "activity_date", "raw"]
     new = upsert(conn, "raw_hubspot_emails", cols, rows)
     return fetched, new, excl
 
@@ -469,11 +484,12 @@ def ingest_hs_meetings(conn, token, day_start, day_end, activity_date):
             "owner_id", "outcome", "attendee_owner_ids", "start_time", "end_time",
             "activity_date", "raw"]
     # Meetings mutate after first capture (outcome set once held/cancelled/no-show,
-    # reschedules move times) — so refresh those fields on re-runs instead of
-    # insert-only. The other raw tables stay append-only.
-    new = upsert(conn, "raw_hubspot_meetings", cols, rows,
-                 update_cols=["hs_timestamp", "title", "outcome", "attendee_owner_ids",
-                              "start_time", "end_time", "raw"])
+    # reschedules move times) — so refresh EVERY column on re-runs instead of
+    # insert-only: a reschedule to another day now moves the row's activity_date
+    # with it, and owner/source reassignments land too (the old partial list froze
+    # activity_date at the original day — audit 2026-07-15). The other raw tables
+    # stay append-only.
+    new = upsert(conn, "raw_hubspot_meetings", cols, rows, update_cols=cols[1:])
     return fetched, new
 
 
@@ -552,7 +568,13 @@ def hs_entities_modified_since(obj, token, props, ts_prop, since_ms):
         if exhausted:
             break
         if last_ms <= since_ms:
-            last_ms = since_ms + 1  # forward-progress guard (theoretical)
+            # >9500 records sharing one lastmodified ms (bulk imports do this)
+            # exceed the scan cap; stepping past the tie loses its remainder
+            # until those records are next touched (audit 2026-07-15).
+            print(f"  WARNING: {obj} modified-timestamp tie group at {since_ms} "
+                  f"exceeded the scan cap; some records may be skipped until "
+                  f"touched again")
+            last_ms = since_ms + 1  # forward-progress guard
         since_ms = last_ms
 
 
@@ -602,9 +624,10 @@ def _activity_prospect_emails(conn):
         cur.execute("select distinct contact_email from raw_amplemarket_calls where contact_email is not null")
         for (e,) in cur.fetchall():
             emails.update(_extract_emails(e))
-        cur.execute("select distinct from_email, to_email, cc_email from raw_hubspot_emails")
-        for f, t, c in cur.fetchall():
-            for s in (f, t, c):
+        # bcc included since 2026-07-15 (audit): a bcc'd prospect is activity too
+        cur.execute("select distinct from_email, to_email, cc_email, bcc_email from raw_hubspot_emails")
+        for f, t, c, b in cur.fetchall():
+            for s in (f, t, c, b):
                 emails.update(_extract_emails(s))
     return {e for e in emails if e.rsplit("@", 1)[1] not in INTERNAL_DOMAINS}
 
@@ -663,28 +686,38 @@ def ingest_ample_users(conn, key):
 
 
 def ingest_hs_owners(conn, token):
-    """Full mirror of HubSpot owners + their team membership (small set, ~130).
-    The /crm/v3/owners list returns each owner's email and a `teams` array.
-    Pure pull: the CA roster is DERIVED from this in Phase 2 (owners in a
-    config_ca_teams team, minus that team's parent members) — not here."""
+    """Full mirror of HubSpot owners + their team membership (small set, ~130
+    active + ~100 archived). The /crm/v3/owners list returns each owner's email
+    and a `teams` array. Pure pull: the CA roster is DERIVED from this in
+    Phase 2 (owners in a config_ca_teams team, minus that team's parent
+    members) — not here."""
     headers = {"Authorization": f"Bearer {token}"}
     cols = ["id", "email", "first_name", "last_name", "user_id", "archived",
             "teams", "hs_created", "hs_lastmodified", "raw"]
     update_cols = cols[1:]
-    url = f"{HS_BASE}/crm/v3/owners?limit=100"
+    # The default listing OMITS archived owners (verified live: 103 archived,
+    # none mirrored — audit 2026-07-15). Page the archived listing too: the
+    # mirror never deletes, so a departed rep's row must flip archived=true
+    # here for the Phase 2 roster derivation to exclude them.
     rows, fetched = [], 0
-    while url:
-        data = http_get(url, headers)
-        for r in data.get("results", []):
-            fetched += 1
-            uid = r.get("userId")
-            rows.append((
-                r["id"], r.get("email"), r.get("firstName"), r.get("lastName"),
-                str(uid) if uid is not None else None, r.get("archived"),
-                Json(r.get("teams") or []),
-                parse_ts(r.get("createdAt")), parse_ts(r.get("updatedAt")), Json(r),
-            ))
-        url = (data.get("paging") or {}).get("next", {}).get("link")
+    seen_ids = set()  # an owner shouldn't appear in both listings; guard anyway
+    for url in (f"{HS_BASE}/crm/v3/owners?limit=100",
+                f"{HS_BASE}/crm/v3/owners?limit=100&archived=true"):
+        while url:
+            data = http_get(url, headers)
+            for r in data.get("results", []):
+                fetched += 1
+                if r["id"] in seen_ids:
+                    continue
+                seen_ids.add(r["id"])
+                uid = r.get("userId")
+                rows.append((
+                    r["id"], r.get("email"), r.get("firstName"), r.get("lastName"),
+                    str(uid) if uid is not None else None, r.get("archived"),
+                    Json(r.get("teams") or []),
+                    parse_ts(r.get("createdAt")), parse_ts(r.get("updatedAt")), Json(r),
+                ))
+            url = (data.get("paging") or {}).get("next", {}).get("link")
     new = upsert(conn, "raw_hubspot_owners", cols, rows, update_cols=update_cols)
     return fetched, new
 
@@ -715,10 +748,11 @@ def seed_ca_teams(conn):
 # records keep surfacing in the source APIs for days after they happened
 # (observed live: +119 tasks an hour later, +72 more a day later, for one day).
 # Re-runs are idempotent, so the sweep is free of dupes.
-# IS 3 ENOUGH? Monitor ingestion_runs: if the OLDEST day of the sweep still
+# Arrivals observed at day+3 — the old window's edge — audit 2026-07-15; widened 3→5.
+# IS 5 ENOUGH? Monitor ingestion_runs: if the OLDEST day of the sweep still
 # reports rows_new > 0 regularly, records are arriving later than the window
 # reaches — widen LOOKBACK_DAYS.
-LOOKBACK_DAYS = 3
+LOOKBACK_DAYS = 5
 
 
 def run_day(conn, ample_key, hs_token, activity_date):
@@ -746,6 +780,11 @@ def run_day(conn, ample_key, hs_token, activity_date):
             if obj == "emails":
                 fetched, new, excl = res
                 excluded = sum(excl.values())
+            elif obj == "tasks":
+                # breakdown carries skipped AmpleMarket user IDS (audit
+                # 2026-07-15) — users, not rows, so rows_excluded stays 0.
+                fetched, new, excl = res
+                excluded = 0
             else:
                 fetched, new = res
                 excluded, excl = 0, None
@@ -793,8 +832,8 @@ def main():
         print(f"=== CA Activity ingestion for {activity_date} (UTC) ===")
         all_failures += run_day(conn, ample_key, hs_token, activity_date)
 
-    # Entity sync (Phase 1.5): companies (+ contacts once enabled). Scheduled
-    # runs only — explicit-date runs are activity backfills and skip this.
+    # Entity sync (Phase 1.5): companies, contacts, owners + AmpleMarket users.
+    # Scheduled runs only — explicit-date runs are activity backfills and skip this.
     if len(sys.argv) <= 1:
         today = datetime.now(timezone.utc).date()
         entity_jobs = [
