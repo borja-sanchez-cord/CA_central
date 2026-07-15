@@ -7,8 +7,11 @@ meetings) into raw landing tables in Supabase/Postgres. A scheduled run (no
 date argument) sweeps the last LOOKBACK_DAYS days, because both sources keep
 surfacing a finished day's records for days afterwards (observed live).
 Scheduled runs also sync the HubSpot entity dimensions (Phase 1.5): a full
-incremental mirror of companies, and an activity-scoped mirror of contacts
-(only people who appear in real rep activity — see the entity section below).
+incremental mirror of companies, an activity-scoped mirror of contacts (only
+people who appear in real rep activity — see the entity section below), and a
+full mirror of owners + their team membership (the source of truth for the CA
+roster; Phase 2 derives the roster from it, subtracting parent teams per the
+config_ca_teams policy, which is seeded from config/ca_teams.json each run).
 
 Design notes (see docs/spec.md, docs/decisions.md):
 - RAW copy: store the source payload faithfully in a `raw` jsonb column plus a
@@ -199,6 +202,29 @@ create table if not exists raw_hubspot_contacts (
     hs_created timestamptz, hs_lastmodified timestamptz,
     raw jsonb not null,
     ingested_at timestamptz not null default now()
+);
+-- HubSpot owners (reps/users) + their team membership. Dimension mirror, full
+-- refresh each scheduled run (small set, ~130). This is the SOURCE OF TRUTH for
+-- the CA roster: Phase 2 derives the roster from `teams` here, subtracting each
+-- parent team (see config_ca_teams). No roster logic in this file — pure pull.
+create table if not exists raw_hubspot_owners (
+    id text primary key,
+    email text,
+    first_name text, last_name text,
+    user_id text,
+    archived boolean,
+    teams jsonb,               -- [{id, name, primary}, ...] as returned by HubSpot
+    hs_created timestamptz, hs_lastmodified timestamptz,
+    raw jsonb not null,
+    ingested_at timestamptz not null default now()
+);
+-- CA-team POLICY (which teams count as CAs, and the parent team to subtract).
+-- Seeded from the version-controlled config/ca_teams.json on every run; the
+-- table — never the file — is what queries read. Phase 2 joins owners.teams
+-- against this to produce the resolved roster (dim_ca).
+create table if not exists config_ca_teams (
+    ca_team_name text primary key,
+    parent_team_name text not null
 );
 create table if not exists ingestion_runs (
     run_id bigint generated always as identity primary key,
@@ -609,6 +635,54 @@ def ingest_hs_contacts(conn, token):
     return fetched, new
 
 
+def ingest_hs_owners(conn, token):
+    """Full mirror of HubSpot owners + their team membership (small set, ~130).
+    The /crm/v3/owners list returns each owner's email and a `teams` array.
+    Pure pull: the CA roster is DERIVED from this in Phase 2 (owners in a
+    config_ca_teams team, minus that team's parent members) — not here."""
+    headers = {"Authorization": f"Bearer {token}"}
+    cols = ["id", "email", "first_name", "last_name", "user_id", "archived",
+            "teams", "hs_created", "hs_lastmodified", "raw"]
+    update_cols = cols[1:]
+    url = f"{HS_BASE}/crm/v3/owners?limit=100"
+    rows, fetched = [], 0
+    while url:
+        data = http_get(url, headers)
+        for r in data.get("results", []):
+            fetched += 1
+            uid = r.get("userId")
+            rows.append((
+                r["id"], r.get("email"), r.get("firstName"), r.get("lastName"),
+                str(uid) if uid is not None else None, r.get("archived"),
+                Json(r.get("teams") or []),
+                parse_ts(r.get("createdAt")), parse_ts(r.get("updatedAt")), Json(r),
+            ))
+        url = (data.get("paging") or {}).get("next", {}).get("link")
+    new = upsert(conn, "raw_hubspot_owners", cols, rows, update_cols=update_cols)
+    return fetched, new
+
+
+def seed_ca_teams(conn):
+    """Sync config_ca_teams to the version-controlled config/ca_teams.json.
+    Read at build time only — everything else queries the table. Full replace
+    so the table mirrors the file exactly (editing/removing a team + re-running
+    is reflected). Best-effort: a missing/broken config must not stop the pull."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "config", "ca_teams.json")
+    try:
+        with open(path) as f:
+            cfg = json.load(f)
+        rows = [(t["ca_team"], t["parent_team"]) for t in cfg["ca_teams"]]
+        with conn.cursor() as cur:
+            cur.execute("delete from config_ca_teams")
+            execute_values(cur,
+                "insert into config_ca_teams (ca_team_name, parent_team_name) values %s", rows)
+        conn.commit()
+        print(f"  config_ca_teams: seeded {len(rows)} CA teams from config/ca_teams.json")
+    except Exception as e:
+        conn.rollback()
+        print(f"  config_ca_teams: WARNING seed skipped ({e})")
+
+
 # ----------------------------------------------------------------------------- main
 # Each scheduled run re-checks the last LOOKBACK_DAYS days, not just yesterday:
 # records keep surfacing in the source APIs for days after they happened
@@ -685,6 +759,7 @@ def main():
     with conn.cursor() as cur:
         cur.execute(DDL)
     conn.commit()
+    seed_ca_teams(conn)  # sync the CA-team policy table from the repo config
 
     all_failures = []
     for activity_date in days:
@@ -698,8 +773,9 @@ def main():
         entity_jobs = [
             ("hubspot", "companies", lambda: ingest_hs_companies(conn, hs_token)),
             ("hubspot", "contacts", lambda: ingest_hs_contacts(conn, hs_token)),
+            ("hubspot", "owners", lambda: ingest_hs_owners(conn, hs_token)),
         ]
-        print(f"=== HubSpot entity sync (companies incremental / contacts activity-scoped) ===")
+        print(f"=== HubSpot entity sync (companies incremental / contacts activity-scoped / owners full) ===")
         for source, obj, fn in entity_jobs:
             started = datetime.now(timezone.utc)
             try:

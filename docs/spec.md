@@ -79,6 +79,8 @@
 | name | |
 | target_account_count | denominator for coverage % |
 
+**CA roster source (built 2026-07-15):** who counts as a rep/CA is **not** hard-coded — it's derived from `raw_hubspot_owners` (full mirror of HubSpot owners + their `teams`) filtered by `config_ca_teams` (the policy: 8 CA teams, each minus its parent Sales pod). `config_ca_teams` is seeded from the version-controlled `config/ca_teams.json`; queries read the table, never the file. Phase 2 materializes the derived roster (17 CAs, PM-confirmed) into `dim_ca` and links each CA's sending addresses across `encord.com` / `encord.ai` / `tryencord.com`. Full rationale + the derivation query in `decisions.md`.
+
 ### Table: `rep_metrics` (AmpleMarket funnel/outcome summaries)
 
 Outcome metrics AmpleMarket computes as aggregates — not individual events, so they live here, not in `activity`. One row per rep per period.

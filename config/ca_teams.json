@@ -1,0 +1,14 @@
+{
+  "_comment": "Source-of-truth POLICY for who counts as a CA. Version-controlled here; the daily ingest seeds it into the Supabase table `config_ca_teams`. Nothing queries this file at runtime — code and dashboards query the table. Edit this file + push to change the policy; the next scheduled run syncs the table to match. See docs/decisions.md ('Authoritative CA roster').",
+  "_rule": "A CA = a member of one of the `ca_team` teams below who is NOT also a member of its `parent_team`. HubSpot nests these teams, so each CA sub-team inherits its parent Sales-pod members; subtracting the parent leaves the true CAs. Parent 'Sales' pods (the AEs/leads) are NOT CAs (PM decision 2026-07-15).",
+  "ca_teams": [
+    { "ca_team": "Computer Vision UK CAs", "parent_team": "Multimodal UK Sales" },
+    { "ca_team": "Digital Native UK CAs",  "parent_team": "Multimodal UK Sales" },
+    { "ca_team": "Regulated UK CAs",       "parent_team": "Multimodal UK Sales" },
+    { "ca_team": "Computer Vision US CAs", "parent_team": "Multimodal US Sales" },
+    { "ca_team": "Digital Native US CAs",  "parent_team": "Multimodal US Sales" },
+    { "ca_team": "Regulated US CAs",       "parent_team": "Multimodal US Sales" },
+    { "ca_team": "PhysAI UK CA's",         "parent_team": "PhysAI UK" },
+    { "ca_team": "PhysAI US CA",           "parent_team": "PhysAI US" }
+  ]
+}
