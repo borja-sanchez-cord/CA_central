@@ -6,6 +6,9 @@ Copies raw activity from AmpleMarket (tasks + calls) and HubSpot (emails +
 meetings) into raw landing tables in Supabase/Postgres. A scheduled run (no
 date argument) sweeps the last LOOKBACK_DAYS days, because both sources keep
 surfacing a finished day's records for days afterwards (observed live).
+Scheduled runs also sync the HubSpot entity dimensions (Phase 1.5): a full
+incremental mirror of companies, and an activity-scoped mirror of contacts
+(only people who appear in real rep activity — see the entity section below).
 
 Design notes (see docs/spec.md, docs/decisions.md):
 - RAW copy: store the source payload faithfully in a `raw` jsonb column plus a
@@ -173,6 +176,30 @@ alter table raw_hubspot_meetings add column if not exists outcome text;
 alter table raw_hubspot_meetings add column if not exists attendee_owner_ids text;
 alter table raw_hubspot_meetings add column if not exists start_time timestamptz;
 alter table raw_hubspot_meetings add column if not exists end_time timestamptz;
+-- Phase 1.5 (2026-07-15): HubSpot Company/Contact objects. These are
+-- DIMENSION tables (current state of an entity), not activity/event tables:
+-- no activity_date, not part of the daily date sweep, and they upsert with
+-- UPDATE (tiers/owners/titles change over time — we keep the latest state).
+-- Sync is incremental by last-modified watermark (see ingest functions).
+create table if not exists raw_hubspot_companies (
+    id text primary key,
+    name text, domain text,
+    icp_tier_validated text, icp_tier_new text,
+    vertical text,
+    target_account_owner text, target_account_tier text, target_account_segment text,
+    owner_id text,
+    hs_created timestamptz, hs_lastmodified timestamptz,
+    raw jsonb not null,
+    ingested_at timestamptz not null default now()
+);
+create table if not exists raw_hubspot_contacts (
+    id text primary key,
+    email text, firstname text, lastname text, jobtitle text,
+    associated_company_id text, lifecyclestage text,
+    hs_created timestamptz, hs_lastmodified timestamptz,
+    raw jsonb not null,
+    ingested_at timestamptz not null default now()
+);
 create table if not exists ingestion_runs (
     run_id bigint generated always as identity primary key,
     activity_date date not null,
@@ -410,6 +437,178 @@ def ingest_hs_meetings(conn, token, day_start, day_end, activity_date):
     return fetched, new
 
 
+# ------------------------------------------------------------- HubSpot entities (Phase 1.5)
+# Companies + contacts are dimension data (current state of an entity), synced
+# differently from the activity tables:
+# - COMPANIES: full mirror of all ~154k records, incremental by last-modified
+#   watermark (first run loads everything; daily runs fetch only changes).
+#   Full mirror deliberately — filtering on `target_account_owner` would
+#   silently drop accounts whose CRM assignment is missing/stale.
+# - CONTACTS: ACTIVITY-SCOPED mirror (PM decision 2026-07-15). The full 446k /
+#   ~300 MB mirror doesn't fit the Supabase free tier; instead we mirror only
+#   contacts that appear in actual rep activity (task/call contacts + email
+#   senders/recipients), re-read in full each run so field changes (jobtitle,
+#   company) stay fresh. Self-extending: touch a new person -> next run pulls
+#   them in. Known trade-off: contacts nobody ever touched are absent, so
+#   "untouched contacts per account" (whitespace denominator, Phase 5) needs
+#   the full mirror + a plan upgrade later.
+
+# Addresses at these domains are OUR REPS, not prospects. Includes the
+# dedicated cold-outreach domain tryencord.com (found 2026-07-15: reps send
+# from it, which made their outbound look like inbound from a stranger).
+INTERNAL_DOMAINS = ("encord.com", "encord.ai", "tryencord.com")
+
+
+def _extract_emails(s):
+    """Lowercase plain addresses from 'a@b.com' / 'Name <a@b.com>' / '<a@b>',
+    semicolon-separated when multiple (HubSpot recipient-string formats)."""
+    out = []
+    for part in (s or "").split(";"):
+        part = part.strip()
+        if "<" in part and ">" in part:
+            part = part[part.index("<") + 1:part.index(">")]
+        part = part.strip().lower()
+        if "@" in part and "." in part.rsplit("@", 1)[1]:
+            out.append(part)
+    return out
+
+
+def hs_entities_modified_since(obj, token, props, ts_prop, since_ms):
+    """Yield every `obj` record modified >= since_ms, oldest-modified first.
+
+    The Search API hard-caps any single query at 10,000 results, so on
+    approaching the cap we restart the query from the last-seen watermark.
+    GTE + restart re-yields boundary records; the upsert makes that harmless.
+    """
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    while True:
+        after, seen, last_ms, exhausted = None, 0, since_ms, False
+        while True:
+            payload = {
+                "filterGroups": [{"filters": [
+                    {"propertyName": ts_prop, "operator": "GTE", "value": str(since_ms)},
+                ]}],
+                "sorts": [{"propertyName": ts_prop, "direction": "ASCENDING"}],
+                "properties": props,
+                "limit": 100,
+            }
+            if after:
+                payload["after"] = after
+            data = http_post(f"{HS_BASE}/crm/v3/objects/{obj}/search", headers, payload)
+            results = data.get("results", [])
+            for r in results:
+                ts = parse_ts(r["properties"].get(ts_prop))
+                if ts:
+                    last_ms = int(ts.timestamp() * 1000)
+                yield r
+            seen += len(results)
+            after = (data.get("paging") or {}).get("next", {}).get("after")
+            time.sleep(0.3)  # HubSpot Search ~4 req/sec
+            if not after:
+                exhausted = True
+                break
+            if seen >= 9500:  # near the 10k cap -> restart from the watermark
+                break
+        if exhausted:
+            break
+        if last_ms <= since_ms:
+            last_ms = since_ms + 1  # forward-progress guard (theoretical)
+        since_ms = last_ms
+
+
+def _entity_watermark_ms(conn, table):
+    """Resume point: newest last-modified we already hold, minus 1h overlap."""
+    with conn.cursor() as cur:
+        cur.execute(f"select coalesce(extract(epoch from max(hs_lastmodified)) * 1000, 0) from {table}")
+        since_ms = int(cur.fetchone()[0])
+    return max(0, since_ms - 3_600_000)
+
+
+def ingest_hs_companies(conn, token):
+    props = ["name", "domain", "account_icp_tier_validated", "account_icp__tier_new",
+             "vertical__aligned_by_team", "target_account_owner", "target_account_tier",
+             "target_account_segment", "hubspot_owner_id", "createdate", "hs_lastmodifieddate"]
+    cols = ["id", "name", "domain", "icp_tier_validated", "icp_tier_new", "vertical",
+            "target_account_owner", "target_account_tier", "target_account_segment",
+            "owner_id", "hs_created", "hs_lastmodified", "raw"]
+    update_cols = cols[1:]  # everything but the id refreshes to current state
+    since_ms = _entity_watermark_ms(conn, "raw_hubspot_companies")
+    rows, fetched, new = [], 0, 0
+    for r in hs_entities_modified_since("companies", token, props, "hs_lastmodifieddate", since_ms):
+        p = r["properties"]
+        fetched += 1
+        rows.append((
+            r["id"], p.get("name"), p.get("domain"),
+            p.get("account_icp_tier_validated"), p.get("account_icp__tier_new"),
+            p.get("vertical__aligned_by_team"), p.get("target_account_owner"),
+            p.get("target_account_tier"), p.get("target_account_segment"),
+            p.get("hubspot_owner_id"), parse_ts(p.get("createdate")),
+            parse_ts(p.get("hs_lastmodifieddate")), Json(r),
+        ))
+        if len(rows) >= 2000:  # flush in batches: bounded memory, resumable watermark
+            new += upsert(conn, "raw_hubspot_companies", cols, rows, update_cols=update_cols)
+            rows = []
+    new += upsert(conn, "raw_hubspot_companies", cols, rows, update_cols=update_cols)
+    return fetched, new
+
+
+def _activity_prospect_emails(conn):
+    """Every distinct non-internal email address seen in ingested activity."""
+    emails = set()
+    with conn.cursor() as cur:
+        cur.execute("select distinct contact_email from raw_amplemarket_tasks where contact_email is not null")
+        for (e,) in cur.fetchall():
+            emails.update(_extract_emails(e))
+        cur.execute("select distinct contact_email from raw_amplemarket_calls where contact_email is not null")
+        for (e,) in cur.fetchall():
+            emails.update(_extract_emails(e))
+        cur.execute("select distinct from_email, to_email, cc_email from raw_hubspot_emails")
+        for f, t, c in cur.fetchall():
+            for s in (f, t, c):
+                emails.update(_extract_emails(s))
+    return {e for e in emails if e.rsplit("@", 1)[1] not in INTERNAL_DOMAINS}
+
+
+def ingest_hs_contacts(conn, token):
+    """Activity-scoped contact mirror: batch-read from HubSpot, by email, every
+    prospect address seen in activity. Re-reads the whole (small) set each run
+    so changed fields stay fresh; unknown emails are simply not returned.
+    NOTE: contacts' canonical last-modified property is `lastmodifieddate`
+    (companies use `hs_lastmodifieddate`)."""
+    props = ["email", "firstname", "lastname", "jobtitle", "associatedcompanyid",
+             "lifecyclestage", "createdate", "lastmodifieddate"]
+    cols = ["id", "email", "firstname", "lastname", "jobtitle", "associated_company_id",
+            "lifecyclestage", "hs_created", "hs_lastmodified", "raw"]
+    update_cols = cols[1:]
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    wanted = sorted(_activity_prospect_emails(conn))
+    rows, fetched, new = [], 0, 0
+    seen_ids = set()  # two input emails can resolve to ONE contact (primary+alias)
+    for i in range(0, len(wanted), 100):  # batch/read caps at 100 inputs
+        chunk = wanted[i:i + 100]
+        payload = {"idProperty": "email", "properties": props,
+                   "inputs": [{"id": e} for e in chunk]}
+        data = http_post(f"{HS_BASE}/crm/v3/objects/contacts/batch/read", headers, payload)
+        for r in data.get("results", []):
+            if r["id"] in seen_ids:
+                continue
+            seen_ids.add(r["id"])
+            p = r["properties"]
+            fetched += 1
+            rows.append((
+                r["id"], p.get("email"), p.get("firstname"), p.get("lastname"),
+                p.get("jobtitle"), p.get("associatedcompanyid"), p.get("lifecyclestage"),
+                parse_ts(p.get("createdate")), parse_ts(p.get("lastmodifieddate")), Json(r),
+            ))
+        if len(rows) >= 2000:
+            new += upsert(conn, "raw_hubspot_contacts", cols, rows, update_cols=update_cols)
+            rows = []
+        time.sleep(0.15)
+    new += upsert(conn, "raw_hubspot_contacts", cols, rows, update_cols=update_cols)
+    print(f"    (contacts scope: {len(wanted)} activity emails -> {fetched} matched in HubSpot)")
+    return fetched, new
+
+
 # ----------------------------------------------------------------------------- main
 # Each scheduled run re-checks the last LOOKBACK_DAYS days, not just yesterday:
 # records keep surfacing in the source APIs for days after they happened
@@ -491,6 +690,33 @@ def main():
     for activity_date in days:
         print(f"=== CA Activity ingestion for {activity_date} (UTC) ===")
         all_failures += run_day(conn, ample_key, hs_token, activity_date)
+
+    # Entity sync (Phase 1.5): companies (+ contacts once enabled). Scheduled
+    # runs only — explicit-date runs are activity backfills and skip this.
+    if len(sys.argv) <= 1:
+        today = datetime.now(timezone.utc).date()
+        entity_jobs = [
+            ("hubspot", "companies", lambda: ingest_hs_companies(conn, hs_token)),
+            ("hubspot", "contacts", lambda: ingest_hs_contacts(conn, hs_token)),
+        ]
+        print(f"=== HubSpot entity sync (companies incremental / contacts activity-scoped) ===")
+        for source, obj, fn in entity_jobs:
+            started = datetime.now(timezone.utc)
+            try:
+                fetched, new = fn()
+                log_run(conn, activity_date=today, source=source, object_type=obj,
+                        started_at=started, finished_at=datetime.now(timezone.utc),
+                        rows_fetched=fetched, rows_new=new, rows_excluded=0,
+                        exclusion_breakdown=None, status="ok", error=None)
+                print(f"  {source}/{obj}: fetched={fetched} new={new} (rest updated in place)")
+            except Exception as e:
+                conn.rollback()
+                log_run(conn, activity_date=today, source=source, object_type=obj,
+                        started_at=started, finished_at=datetime.now(timezone.utc),
+                        rows_fetched=None, rows_new=None, rows_excluded=None,
+                        exclusion_breakdown=None, status="error", error=str(e)[:500])
+                print(f"  {source}/{obj}: ERROR {e}")
+                all_failures.append((source, obj, str(e)))
 
     conn.close()
     if all_failures:
