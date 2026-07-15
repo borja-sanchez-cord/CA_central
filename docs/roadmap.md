@@ -96,6 +96,8 @@ No normalization/dedup here — that's Phase 2/3.
 
 **Success metric:** each contact, company, **and rep** resolves to a single ID; HubSpot company duplicates collapsed; rep accounts/addresses linked; a match rate and an unresolved-records list are produced.
 
+**Status (2026-07-15): BUILT as `identity/resolve.py` — awaiting PM check.** Full-rebuild, reads raw tables only, run manually (not yet on the daily schedule). Outputs: `dim_ca`, `dim_ca_address`, `ca_amplemarket_user`, `company_crosswalk`, `contact_crosswalk`, `amplemarket_contact_map`, `identity_unresolved`. Two load-bearing guards found during validation (details + evidence in `decisions.md`): (1) never merge companies on domain alone — junk domains exist (google.com on unrelated companies); name must agree; (2) a CA can hold multiple AmpleMarket accounts — the rep↔ample link is a table, not a column. Open inputs that slot in later: tryencord.com counting decision; James F source-list confirmation.
+
 **PM check:** Claude shows you the match rate, the linked rep identities, and a short list of anything it couldn't confidently match, for your eyes.
 
 **Depends on:** Phase 1.5 (needs the company/contact objects to resolve against). The **technical** rep-identity map (which internal ID = which person + addresses) is available **now** from the AmpleMarket `/users` API — *not* blocked on Ray. **Who counts as a CA is now resolved** (HubSpot Teams → 17 CAs, PM-confirmed 2026-07-15; see `decisions.md`) — no longer a blocker.
