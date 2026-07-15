@@ -203,6 +203,20 @@ create table if not exists raw_hubspot_contacts (
     raw jsonb not null,
     ingested_at timestamptz not null default now()
 );
+-- AmpleMarket users. Dimension mirror, full refresh each scheduled run (~56).
+-- Load-bearing for CALL attribution: raw_amplemarket_calls name their rep by
+-- internal user id ONLY (no name/email) — this table is the only way to map a
+-- call to a person. `mailboxes` links a user's sending addresses. ALL users are
+-- kept, incl. deactivated (raw copy; Phase 2 filters by the CA roster, and the
+-- `role` field is unreliable — active CAs can show as `admin`).
+create table if not exists raw_amplemarket_users (
+    id text primary key,
+    name text, email text,
+    status text, role text,
+    mailboxes jsonb,           -- [{id, email}, ...] as returned by AmpleMarket
+    raw jsonb not null,
+    ingested_at timestamptz not null default now()
+);
 -- HubSpot owners (reps/users) + their team membership. Dimension mirror, full
 -- refresh each scheduled run (small set, ~130). This is the SOURCE OF TRUTH for
 -- the CA roster: Phase 2 derives the roster from `teams` here, subtracting each
@@ -635,6 +649,19 @@ def ingest_hs_contacts(conn, token):
     return fetched, new
 
 
+def ingest_ample_users(conn, key):
+    """Full mirror of AmpleMarket users (small set, ~56). The only source that
+    maps an AmpleMarket internal user id -> person + sending mailboxes; calls
+    reference their rep by this id alone, so call attribution depends on it."""
+    users = ample_users(key)
+    cols = ["id", "name", "email", "status", "role", "mailboxes", "raw"]
+    rows = [(u["id"], u.get("name"), u.get("email"), u.get("status"),
+             u.get("role"), Json(u.get("mailboxes") or []), Json(u))
+            for u in users if u.get("id")]
+    new = upsert(conn, "raw_amplemarket_users", cols, rows, update_cols=cols[1:])
+    return len(rows), new
+
+
 def ingest_hs_owners(conn, token):
     """Full mirror of HubSpot owners + their team membership (small set, ~130).
     The /crm/v3/owners list returns each owner's email and a `teams` array.
@@ -774,8 +801,9 @@ def main():
             ("hubspot", "companies", lambda: ingest_hs_companies(conn, hs_token)),
             ("hubspot", "contacts", lambda: ingest_hs_contacts(conn, hs_token)),
             ("hubspot", "owners", lambda: ingest_hs_owners(conn, hs_token)),
+            ("amplemarket", "users", lambda: ingest_ample_users(conn, ample_key)),
         ]
-        print(f"=== HubSpot entity sync (companies incremental / contacts activity-scoped / owners full) ===")
+        print(f"=== Entity sync (companies incremental / contacts activity-scoped / owners + ample users full) ===")
         for source, obj, fn in entity_jobs:
             started = datetime.now(timezone.utc)
             try:
