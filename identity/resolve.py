@@ -33,6 +33,12 @@ linking" and docs/spec.md §2/§3):
 - Company duplicate collapse: by normalized domain only (lowercase, strip
   scheme/path/www). Free-email domains never collapse. No fuzzy-name merges —
   no-domain TARGET companies go to the review list instead of guessing.
+- Guard rails (production audit 2026-07-15): the run aborts before touching
+  any table if the derived roster is empty, a config team name matches no
+  owner (rename/typo), or a current CA would disappear (override a real
+  departure with RESOLVE_ALLOW_SHRINK=1); observed senders only auto-link
+  when verifiable as the CA's own address; and all seven tables land in ONE
+  commit, so a mid-run crash leaves the previous snapshot intact.
 
 Run:  python identity/resolve.py
 """
@@ -143,15 +149,27 @@ def norm_domain(d):
     return d
 
 
+def id_key(cid):
+    """Sort key for HubSpot ids: numeric, not lexicographic ("99" > "100" as
+    text picks the wrong winner — audit 2026-07-15). Ids are numeric strings;
+    the fallback just keeps a surprise non-numeric id from crashing the run."""
+    return (0, int(cid)) if cid.isdigit() else (1, cid)
+
+
 def rebuild(conn, table, columns, rows):
-    """Full deterministic rebuild: delete everything, insert the derived rows."""
+    """Full deterministic rebuild: delete everything, insert the derived rows.
+
+    Deliberately does NOT commit (audit 2026-07-15): main() commits once after
+    the last rebuild, so a crash anywhere mid-run rolls the connection back to
+    the previous consistent snapshot instead of leaving half old / half new
+    tables behind.
+    """
     with conn.cursor() as cur:
         cur.execute(f"delete from {table}")
         if rows:
             cols = ", ".join(columns)
             execute_values(cur, f"insert into {table} ({cols}) values %s",
                            rows, page_size=5000)
-    conn.commit()
 
 
 # --------------------------------------------------------------------- reps
@@ -168,11 +186,72 @@ def derive_cas(conn):
              and not exists (select 1 from jsonb_array_elements(o.teams) t
                              where t->>'name' = c.parent_team_name)
             where coalesce(o.archived, false) = false
+              -- a NULL email can't be address-matched and would crash norm_local;
+              -- a real CA losing their email trips the shrink guard loudly instead
+              and o.email is not null
             group by o.id, o.first_name, o.last_name, o.email
         """)
         return [{"ca_id": r[0], "name": f"{r[1] or ''} {r[2] or ''}".strip(),
                  "email": r[3], "teams": "; ".join(r[4])}
                 for r in cur.fetchall()]
+
+
+def guard_roster(conn, cas):
+    """Refuse to rebuild when the derived roster looks wrong (audit 2026-07-15).
+
+    A bad upstream state used to destroy the roster silently: empty raw tables
+    (or a HubSpot team rename that makes a config row match nothing) -> a
+    zero/short roster -> rebuild() deletes dim_ca and exits 0. Three fatal
+    checks, all BEFORE any table is touched:
+      1) zero CAs derived;
+      2) any config_ca_teams row whose team names match no current owner;
+      3) the new roster drops someone present in the current dim_ca
+         (override with RESOLVE_ALLOW_SHRINK=1 for a real departure).
+    Additions to the roster are always fine.
+    """
+    if not cas:
+        sys.exit("FATAL: derived 0 CAs from raw_hubspot_owners x config_ca_teams "
+                 "— refusing to rebuild (would wipe dim_ca and every attribution "
+                 "downstream). Check the raw owner pull and config_ca_teams.")
+
+    with conn.cursor() as cur:
+        # A renamed HubSpot team leaves its config row matching nothing and that
+        # team's CAs would silently vanish — fail loudly per offending row.
+        cur.execute("""
+            select c.ca_team_name, c.parent_team_name,
+                   exists (select 1 from raw_hubspot_owners o
+                           where coalesce(o.archived, false) = false
+                             and exists (select 1 from jsonb_array_elements(o.teams) t
+                                         where t->>'name' = c.ca_team_name)),
+                   exists (select 1 from raw_hubspot_owners o
+                           where coalesce(o.archived, false) = false
+                             and exists (select 1 from jsonb_array_elements(o.teams) t
+                                         where t->>'name' = c.parent_team_name))
+            from config_ca_teams c
+        """)
+        bad = []
+        for ca_team, parent, ca_ok, parent_ok in cur.fetchall():
+            missing = [t for t, ok in ((ca_team, ca_ok), (parent, parent_ok)) if not ok]
+            if missing:
+                bad.append(f"  ('{ca_team}' / parent '{parent}'): no current owner is in "
+                           + " or ".join(f"'{t}'" for t in missing))
+        if bad:
+            sys.exit("FATAL: config_ca_teams row(s) match no owners — likely a team "
+                     "rename in HubSpot or a config typo; fix, then re-run:\n"
+                     + "\n".join(bad))
+
+        # Shrink guard: never silently drop a CA people are reporting on.
+        cur.execute("select to_regclass('dim_ca')")
+        if cur.fetchone()[0] is None:
+            return  # first run: no previous roster to compare against
+        cur.execute("select ca_id, name from dim_ca")
+        new_ids = {ca["ca_id"] for ca in cas}
+        gone = sorted(name for ca_id, name in cur.fetchall() if ca_id not in new_ids)
+    if gone and os.environ.get("RESOLVE_ALLOW_SHRINK") != "1":
+        sys.exit("FATAL: derived roster is missing current CA(s): " + ", ".join(gone)
+                 + " — refusing to shrink dim_ca (usually a HubSpot team rename or "
+                 "membership change upstream). If this is a real departure, re-run "
+                 "with RESOLVE_ALLOW_SHRINK=1.")
 
 
 def link_addresses(conn, cas):
@@ -182,28 +261,45 @@ def link_addresses(conn, cas):
     Sources, in order: the owner's primary email; AmpleMarket user email +
     mailboxes (also yields the uid->ca links — plural: a CA can have several
     AmpleMarket accounts); addresses observed as senders in raw_hubspot_emails.
+
+    Observed senders are the risky source (audit 2026-07-15): a future non-CA
+    hire can share a CA's dot-insensitive local (live proof of the pattern:
+    two distinct owner records both norm to 'sara'), so a sender only
+    auto-links when the address is verifiably the CA's own — their owner email
+    or a mailbox of an AmpleMarket account already mapped to them. Anything
+    else that merely matches a local is parked for human review, never linked.
     """
     by_local = {norm_local(ca["email"]): ca for ca in cas}
     if len(by_local) != len(cas):
         sys.exit("FATAL: two CAs share a dot-insensitive local part — "
                  "address matching is ambiguous; fix before resolving.")
 
-    addresses = {}   # address -> (ca_id, source); first source wins
-    parked = []      # tryencord + other unlinkable internal senders, for the report
+    addresses = {}     # address -> (ca_id, source); first source wins
+    parked = []        # tryencord + other unlinkable internal senders, for the report
+    parked_keys = set()  # one park per address — a dup (kind, key) would break the PK insert
+    collisions = []    # non-CA records sharing a CA's local: WARN only, never link
+
+    def park(addr, detail):
+        if addr not in addresses and addr not in parked_keys:
+            parked_keys.add(addr)
+            parked.append(("address_parked", addr, detail))
 
     def link(addr, source):
+        """Auto-link addr if safe; returns None on success, else why not."""
         addr = addr.lower()
-        domain = addr.rsplit("@", 1)[1]
         ca = by_local.get(norm_local(addr))
-        if ca and domain in LINKABLE_DOMAINS:
-            addresses.setdefault(addr, (ca["ca_id"], source))
-            return True
-        return False
+        if ca is None:
+            return "no CA match"
+        if addr.rsplit("@", 1)[1] not in LINKABLE_DOMAINS:
+            return "unlinkable domain"
+        addresses.setdefault(addr, (ca["ca_id"], source))
+        return None
 
     for ca in cas:
         link(ca["email"], "owner_primary")
 
     ample_users = {}  # amplemarket_user_id -> ca_id (a CA may own several accounts)
+    verified = {}     # ca_id -> that CA's mapped-account addresses (email + mailboxes)
     with conn.cursor() as cur:
         cur.execute("""select id, lower(email),
                               (select array_agg(lower(m->>'email'))
@@ -216,20 +312,55 @@ def link_addresses(conn, cas):
                        and a.rsplit("@", 1)[1] in INTERNAL_DOMAINS), None)
             if ca:
                 ample_users[uid] = ca["ca_id"]
+                verified.setdefault(ca["ca_id"], set()).update(a for a in candidates if a)
                 for a in candidates:
-                    if a and not link(a, "amplemarket_mailbox"):
-                        parked.append(("address_parked", a,
-                                       f"AmpleMarket mailbox of {ca['name']}, unlinkable domain"))
+                    if a:
+                        why = link(a, "amplemarket_mailbox")
+                        if why:
+                            park(a, f"AmpleMarket mailbox of {ca['name']}, {why}")
+            else:
+                for loc in sorted({norm_local(a) for a in candidates
+                                   if a and norm_local(a) in by_local}):
+                    collisions.append(f"AmpleMarket user {email or uid} shares local "
+                                      f"'{loc}' with CA {by_local[loc]['name']}")
 
         cur.execute("""select lower(from_email), count(*) from raw_hubspot_emails
                        where from_email is not null group by 1""")
         for raw_from, n in cur.fetchall():
             for a in _extract_emails(raw_from):
                 d = a.rsplit("@", 1)[1]
-                if d in INTERNAL_DOMAINS and a not in addresses:
-                    if not link(a, "observed_sender"):
-                        parked.append(("address_parked", a,
-                                       f"internal-domain sender, no CA match ({n} emails)"))
+                if d not in INTERNAL_DOMAINS or a in addresses or a in parked_keys:
+                    continue
+                ca = by_local.get(norm_local(a))
+                if ca is None:
+                    park(a, f"internal-domain sender, no CA match ({n} emails)")
+                elif d in LINKABLE_DOMAINS and (a == ca["email"] or
+                                                a in verified.get(ca["ca_id"], ())):
+                    # verifiably the CA's own address — safe to auto-link
+                    addresses.setdefault(a, (ca["ca_id"], "observed_sender"))
+                else:
+                    # local-part match alone is NOT proof of identity (audit
+                    # 2026-07-15): park for review instead of mis-attributing
+                    park(a, f"matches CA {ca['name']} by dot-insensitive local "
+                            f"but unverified — review before linking ({n} emails)")
+
+        # Visibility only (audit 2026-07-15): flag non-CA owner records whose
+        # local collides with a CA's, so the ambiguity is seen before the day
+        # such an address starts sending. Printed, never auto-linked.
+        cur.execute("""select id, lower(email), first_name, last_name
+                       from raw_hubspot_owners
+                       where coalesce(archived, false) = false
+                         and email is not null""")
+        roster_ids = {ca["ca_id"] for ca in cas}
+        for oid, email, first, last in cur.fetchall():
+            if oid not in roster_ids and norm_local(email) in by_local:
+                who = f"{first or ''} {last or ''}".strip() or email
+                collisions.append(f"owner {who} ({email}) shares local "
+                                  f"'{norm_local(email)}' with CA "
+                                  f"{by_local[norm_local(email)]['name']}")
+
+    for c in collisions:
+        print(f"WARNING: {c} — will NOT auto-link; review whether their mail should count")
 
     return addresses, ample_users, parked
 
@@ -240,7 +371,7 @@ def resolve_companies(conn):
 
     Canonical pick within a domain group (deterministic): a row with a real
     target_account_owner beats one without; then earliest created; then lowest
-    id. Companies with no usable domain form groups of one (never merged);
+    id (numeric). Companies with no usable domain form groups of one (never merged);
     the TARGET ones among them go to the review list.
 
     Name-agreement guard: a shared domain is necessary but NOT sufficient —
@@ -271,7 +402,7 @@ def resolve_companies(conn):
     conflicts = []
     for _key, members in groups.items():
         can_id, can_name = min(members,
-                               key=lambda m: (not m[2], m[3] or never, m[0]))[:2]
+                               key=lambda m: (not m[2], m[3] or never, id_key(m[0])))[:2]
         can_tokens = name_tokens(can_name)
         merged_any = False
         for cid, name, _own, _created, d in members:
@@ -301,10 +432,17 @@ def resolve_companies(conn):
 def resolve_contacts(conn):
     """Email -> HubSpot contact -> resolved company; AmpleMarket contact map."""
     with conn.cursor() as cur:
-        cur.execute("""select lower(c.email), min(c.id)
+        # lowest id per duplicate email — picked in Python because SQL min()
+        # on the text id column is lexicographic ("99" > "100"), which can
+        # crown the wrong duplicate (audit 2026-07-15)
+        cur.execute("""select lower(c.email), c.id
                        from raw_hubspot_contacts c
-                       where c.email is not null group by 1""")
-        email_to_contact = dict(cur.fetchall())
+                       where c.email is not null""")
+        email_to_contact = {}
+        for email, cid in cur.fetchall():
+            best = email_to_contact.get(email)
+            if best is None or id_key(cid) < id_key(best):
+                email_to_contact[email] = cid
 
         cur.execute("""select c.id, x.resolved_company_id
                        from raw_hubspot_contacts c
@@ -374,8 +512,9 @@ def coverage(conn):
             ca_addrs = {r[0] for r in c2.fetchall()}
         for raw_from, n in cur.fetchall():
             addrs = _extract_emails(raw_from)
-            if any(a.rsplit("@", 1)[1] in INTERNAL_DOMAINS or
-                   a.rsplit("@", 1)[1] == "tryencord.com" for a in addrs):
+            # INTERNAL_DOMAINS already includes tryencord.com (the parked
+            # outreach domain) — edit that constant and this denominator moves
+            if any(a.rsplit("@", 1)[1] in INTERNAL_DOMAINS for a in addrs):
                 sent_internal += n
                 if any(a in ca_addrs for a in addrs):
                     sent_ca += n
@@ -392,6 +531,7 @@ def main():
     conn.commit()
 
     cas = derive_cas(conn)
+    guard_roster(conn, cas)  # bail on a bad roster BEFORE any table is touched
     addresses, ample_users, parked = link_addresses(conn, cas)
     rebuild(conn, "dim_ca", ["ca_id", "name", "primary_email", "ca_teams"],
             [(c["ca_id"], c["name"], c["email"], c["teams"]) for c in cas])
@@ -402,8 +542,18 @@ def main():
 
     co_stats, co_review = resolve_companies(conn)
     ct_stats, ct_review = resolve_contacts(conn)
-    rebuild(conn, "identity_unresolved", ["kind", "key", "detail"],
-            sorted(set(parked + co_review + ct_review)))
+    # one row per (kind, key) — the table's PK; first occurrence wins, so two
+    # loops flagging the same key with different wording can't abort the run
+    # halfway through the rebuild (audit 2026-07-15)
+    review, seen = [], set()
+    for row in parked + co_review + ct_review:
+        if row[:2] not in seen:
+            seen.add(row[:2])
+            review.append(row)
+    rebuild(conn, "identity_unresolved", ["kind", "key", "detail"], sorted(review))
+    # the ONLY data commit — rebuild() doesn't commit, so all seven tables
+    # swap in one atomic snapshot (a crash above rolls everything back)
+    conn.commit()
 
     cov = coverage(conn)
 
