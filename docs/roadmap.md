@@ -88,7 +88,7 @@ No normalization/dedup here — that's Phase 2/3.
 **Plain terms:** Make sure "the same person," "the same company," **and "the same rep"** are each recognised as one — even across two systems, despite HubSpot sometimes storing a company twice, and despite a rep having more than one login/email. Without this, activity splits across duplicates and the numbers come out wrong.
 
 **Work:**
-- **Reps (new — discovered in Phase 1):** agree an **authoritative CA roster** (AmpleMarket's `role` field is unreliable — active reps show as `admin`); **link each rep's multiple accounts + email addresses into one rep identity** (e.g. Nico `@encord.ai`/`@encord.com`, Yuvi ×2, Callum duplicate). Without this, a rep's own emails get misread as inbound and their activity is split.
+- **Reps (new — discovered in Phase 1):** the **authoritative CA roster is now agreed — 17 CAs, confirmed by the PM 2026-07-15** (full list + derivation in `decisions.md`). It is defined by **HubSpot Teams**, not AmpleMarket's `role` field (which is unreliable — active reps show as `admin`). Remaining rep work: **link each CA's multiple accounts + email addresses into one identity** (e.g. Yuvi's dormant `@encord.ai` + active `@encord.com`; the `tryencord.com` cold-outreach senders). The HubSpot roster gives the *person*; the address-map links their *sending mailboxes* across `encord.com` / `encord.ai` / `tryencord.com`. Without this, a rep's own emails get misread as inbound and their activity is split.
 - **Build the rep-identity map from the AmpleMarket `/users` API.** It returns every rep's internal ID, email, and a `mailboxes` list linking their addresses — **for all reps, including those who logged no tasks.** This is **load-bearing for calls:** an AmpleMarket call record names its rep *only* by internal ID (no name/email), so a call can be attributed to a person **only** via this map — never from the rep's task history. (Validated 2026-07-14: Yuvi logged 0 tasks on 13 Jul, so his two answered calls were invisible until mapped via `/users`, then surfaced correctly and matched what he reported.)
 - **People:** match by exact lowercased email (fuzzy name fallback).
 - **Companies:** match by domain (fuzzy name fallback, guard free-email domains); **collapse HubSpot duplicate companies by domain (mandatory)**.
@@ -98,7 +98,7 @@ No normalization/dedup here — that's Phase 2/3.
 
 **PM check:** Claude shows you the match rate, the linked rep identities, and a short list of anything it couldn't confidently match, for your eyes.
 
-**Depends on:** Phase 1.5 (needs the company/contact objects to resolve against). The **technical** rep-identity map (which internal ID = which person + addresses) is available **now** from the AmpleMarket `/users` API — *not* blocked on Ray. Ray / sales leadership are needed only to confirm **who counts as a CA** (team membership), which can proceed in parallel.
+**Depends on:** Phase 1.5 (needs the company/contact objects to resolve against). The **technical** rep-identity map (which internal ID = which person + addresses) is available **now** from the AmpleMarket `/users` API — *not* blocked on Ray. **Who counts as a CA is now resolved** (HubSpot Teams → 17 CAs, PM-confirmed 2026-07-15; see `decisions.md`) — no longer a blocker.
 
 ---
 
