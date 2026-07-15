@@ -5,7 +5,7 @@ One central place to see how much and how well each CA (outbound rep) is working
 ## Status
 - Context, spec, roadmap, decisions: **done** (spec includes verified API facts in §9).
 - Scope: **confirmed by Ray.**
-- Build: **Phases 1 + 1.5 live on the daily cron and PM-verified.** **Phase 2 (identity resolution) built and validated** (`identity/resolve.py`), awaiting formal PM sign-off; the **17-CA roster** is resolved from HubSpot teams (PM-confirmed 2026-07-15).
+- Build: **Phases 1 + 1.5 + 2 done.** Phases 1/1.5 live on the daily cron and PM-verified; **Phase 2 (identity resolution) done** (`identity/resolve.py`) — PM-validated + production-audited 2026-07-15; the **17-CA roster** is resolved from HubSpot teams (PM-confirmed). Carried into Phase 3: wire `resolve.py` into the cron; tryencord counting + James-F tool-list confirmations (both parked, not blockers).
 - **Production audit completed 2026-07-15** (5 parallel agents; fixes applied — see the audit entry in `decisions.md`). Next: **Phase 3 (unified activity model).**
 
 ## Read the docs in this order
