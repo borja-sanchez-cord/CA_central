@@ -46,11 +46,11 @@ The person owning this project is a **non-technical PM**. The building agent mus
 
 ---
 
-## Phase 1 — Daily ingestion (raw)  ✅ DONE (live daily cron; validated with 4+ reps) — 3 follow-up fixes queued (see below)
+## Phase 1 — Daily ingestion (raw)  ✅ DONE (live daily cron; validated with 4+ reps; code-review fixes applied)
 
 **Plain terms:** Start automatically copying every rep's raw activity — calls, LinkedIn actions, emails, meetings — out of the two tools into our database, once a day. Just a faithful copy at this stage, not yet cleaned or merged.
 
-**Work:** AmpleMarket daily pull of calls + tasks (per user, **paginating all users**), capturing channel, timestamp, automatic flag, contact, sequence name; HubSpot daily pull of emails + meetings, **keeping all origins tagged (Amplemarket / Apollo / manual Gmail)** and dropping only warmup noise; land both in raw staging; re-runs must not duplicate; respect rate limits (HubSpot Search ~4 req/sec).
+**Work:** AmpleMarket daily pull of calls + tasks (per user, **paginating all users**), capturing channel, timestamp, automatic flag, contact, sequence name; HubSpot daily pull of emails + meetings, **keeping all origins tagged (Amplemarket / Apollo / manual Gmail / CRM_UI)** and dropping only warmup noise; land both in raw staging; re-runs must not duplicate; respect rate limits (HubSpot Search ~4 req/sec).
 
 **Success metric:** a daily run lands a full day of activity from both sources; re-running the same day creates no duplicates.
 
@@ -58,14 +58,7 @@ The person owning this project is a **non-technical PM**. The building agent mus
 
 **Depends on:** Phase 0.
 
-**Corrections logged during build (see `decisions.md`):** paginate AmpleMarket `/users` (was capped at 20); **keep** AmpleMarket-synced HubSpot emails (AmpleMarket exposes email *tasks*, not *sends*, so dropping them undercounted). De-dup/direction rules moved to Phase 3.
-
-**Added 2026-07-15 (shipped, in `ingest.py`):** HubSpot email **bodies now captured** in the daily pull (`body_html` + `body_preview` on `raw_hubspot_emails`) — no new scope, going-forward only, no backfill. Unlocks body-based dedup (Phase 3) and the v2 quality lens. See `decisions.md` + spec §7.
-
-**✅ Code-review follow-ups — ALL THREE APPLIED 2026-07-15 (see `decisions.md` for the full entry).**
-1. **Lookback widened:** each scheduled run now re-checks the last 3 days (`LOOKBACK_DAYS = 3`), not just yesterday. First run immediately recovered 72 late tasks + 3 late emails for 13 Jul that were previously lost forever. Manual runs with an explicit date still do that single day.
-2. **Recipients / attendees / outcome captured:** emails now store `to_email` + `cc_email` (semicolon-separated when multiple; bcc kept in `raw`); meetings now store `outcome` (held/cancelled/no-show — only present when someone logs it), `attendee_owner_ids` (internal attendees), and start/end times. Meetings switched to **update-on-conflict** so an outcome set after first capture gets picked up by the lookback. One-time backfill updated all previously-ingested days (11–15 Jul, 3,070 email rows). Caveat: external meeting attendees are HubSpot *associations*, not properties — still not available via this pull.
-3. **Errors isolated per job:** one failing job no longer aborts the rest — all 4 jobs (and all lookback days) run; failures are logged to `ingestion_runs` and the process exits non-zero at the end so the scheduler still shows red. The GitHub ~60-day auto-disable on quiet repos remains a periodic manual check, not a code fix.
+**As built (full history + evidence in `decisions.md`; design facts in `spec.md`):** beyond the base pull, Phase 1 also captures email **bodies + recipients** and meeting **outcome/attendees** (meetings update-on-conflict; the other tables are append-only); each scheduled run **sweeps the last 3 days** because the source APIs keep surfacing a finished day's records late — if `ingestion_runs` shows the oldest sweep day still finding new rows, widen `LOOKBACK_DAYS`; jobs **fail independently** and failures are logged. Known limit: external (prospect) meeting attendees aren't retrievable via this pull.
 
 ---
 
@@ -94,20 +87,20 @@ The person owning this project is a **non-technical PM**. The building agent mus
 
 **Work:** normalize staging into the activity fact table + account/contact/rep dimensions (per spec); attach each activity to its resolved account + contact; materialize the single flat analytics view; carry the HubSpot email `body` through from raw into the activity fact (captured from Phase 1 — see spec §7; AmpleMarket message text stays null until the v2 webhook). Connect Supabase↔GitHub for schema migrations here.
 
-**Code health — do this here, not later (found in code review, 2026-07-14).** `ingestion/ingest.py` is a single ~400-line script with no tests — fine for Phase 1's "pull, don't think" job, verified by eyeballing the numbers. Phase 3 is different: it's real decision-making (dedup rules below, sender-matching, attempts-vs-conversations) — exactly the kind of logic that breaks silently without a test catching it. Before piling this logic into `ingest.py`:
+**Code health — do this here, not later (found in code review, 2026-07-14).** `ingestion/ingest.py` is a single ~500-line script with no tests — fine for Phase 1's "pull, don't think" job, verified by eyeballing the numbers. Phase 3 is different: it's real decision-making (dedup rules below, sender-matching, attempts-vs-conversations) — exactly the kind of logic that breaks silently without a test catching it. Before piling this logic into `ingest.py`:
 - **Split it out** — dedup/attribution logic as its own module(s), separate from the raw-pull code, not bolted onto Phase 1's script.
 - **Add tests** for each dedup/attribution rule below, using real validated cases as fixtures (e.g. James Falconer's Apollo+AmpleMarket duplicate should collapse to 1; Dillon's 6-attendee invite should collapse to 1; George Lim's owner_id `538916758` must NOT be trusted for attribution; **Andrew Bell 2026-07-14 — 17 raw email rows must collapse to ~6 real emails + recognize ~7 invite/notification rows as meetings, exercising the prefix-strip + time-window dedup and the invite↔meeting cross-channel rule**). These are cheap to write now because we already know the right answer for each — much cheaper than debugging a silent regression after the dashboard is live.
 
-**De-duplication, attribution & direction rules (confirmed during Phase 1 validation — the raw layer keeps everything; these are applied here on read):**
-- **Attribute emails by SENDER, not `owner_id`.** Who sent an email = its `hs_email_from_email` address, matched to the rep's linked addresses (from the `/users` map, Phase 2). HubSpot's `hubspot_owner_id` is **not** reliable rep identity: one owner_id is shared across several reps (e.g. `538916758` carried Kamil, Yianni, George Lim, Nico, Ilaria), and one rep's mail spans many owner_ids (Dillon across 6). *Some* reps do have a clean owner_id (Yuvi, Katie, Joe) — but you cannot rely on it, so always attribute by sender.
-- **Sent vs received email split.** Direction follows from the sender: sender is one of the rep's addresses → outbound (counts as rep *effort*); otherwise inbound (a prospect reply, tracked separately as an *engagement/outcome* signal). (Validated on Yianni: 3 sent vs 2 received; Yuvi 13 Jul: 3 of 30 were inbound prospect replies.)
-- **Same-email cross-tool duplicates — an exact "subject + date + time" match will NOT catch them (corrected 2026-07-15, Andrew Bell).** The same send is logged into HubSpot by *several* tools (Apollo + Gmail, Apollo + `CRM_UI`, up to 3 copies — N-way, varying sources). Two traps: (a) Apollo rewrites the subject with a `[Apollo] [Email] [<<] ` prefix, so subjects differ → **strip tool prefixes first**; (b) copies land **seconds apart** (10:53:28 vs 10:53:38), never on the same instant → **match within a ±~60s window, not on equality**. Real key: **normalized-subject + sender + time-window**, with the message **`body` as the strongest signal** (now captured — identical across copies). (First seen on James Falconer: "Re: VLMs in identity", double-logged.)
-- **A fourth email source: `CRM_UI`.** Origins are not just Amplemarket / Apollo / manual Gmail — HubSpot also tags emails sent from its own web UI as `CRM_UI` (a manual send). Include it in the source list and the automated/manual split; default any unknown source to manual, never drop.
-- **Calendar invite (email) ↔ meeting (meeting object) are one event — don't count both.** A tool-booked meeting writes both an invite row in the emails table and a row in the meetings table (Andrew Bell: Bosch invite email 12:00 BST = Bosch meeting 11:00 UTC). Invite/notification emails belong to the meeting channel, not the email tally, or tool-booked meetings inflate both buckets.
-- **AmpleMarket task ↔ send reconciliation.** AmpleMarket exposes email *tasks* but not *sends*; sends appear only as the HubSpot-synced copy. Reconcile so a task and its resulting send aren't counted twice, without dropping sends. (See decisions.md.)
-- **Calls: count dial *attempts* and *conversations* separately — do NOT collapse on `task_id`.** A rep chasing one contact fires several call records in a tight window (Joe Turner 13 Jul: 4 calls in 123s to 4 *different numbers* for one contact = 4 attempts, 1 real conversation). `task_id` is **often null** on `/calls` (it was on all 4), so the earlier "collapse via `task_id`" idea does not work in practice → group a conversation by **same contact + tight time window**. A record is a genuine conversation only when `human = true`; an `answered = true` record can still be voicemail/IVR (machine). Surface **both** measures (attempts *and* connects/conversations) — collapsing to one erases real effort, counting all as conversations inflates volume.
-- **Calendar-invite fan-out.** One calendar action is logged **once per attendee** (Dillon 13 Jul: 6 identical Apollo "Updated invitation" rows, same timestamp, one per invitee) → collapse to a single activity (same subject + time, differing only by recipient).
-- **Exclude internal recipients.** Email/invite activity whose only recipients are internal `@encord.com` people is not outbound CA activity (Dillon's invite attendees were all internal) → don't count it as outreach.
+**De-duplication, attribution & direction rules — implement ALL of these.** This is the checklist; the **authoritative, corrected statements live in `spec.md` §3** (evidence + history in `decisions.md`). Do not code from memory of these one-liners — read §3 first:
+1. Attribute emails by **sender address**, never `hubspot_owner_id` (proven unreliable both directions).
+2. **Sent vs received** split: sender ∈ rep's addresses ⇒ outbound effort; else inbound engagement signal.
+3. **Same-email cross-tool duplicates** are N-way across varying sources; exact "subject+time" match does NOT work — key is normalized subject (strip tool prefixes) + sender + ±60s window, with `body` as the strongest signal.
+4. **Four** email sources incl. `CRM_UI`; unknown source ⇒ treat as manual, never drop.
+5. **Calendar invite (email) ↔ meeting object = one event** — never count in both channels.
+6. **Calendar-invite fan-out** (one row per attendee) → collapse to one activity.
+7. **AmpleMarket email task ↔ HubSpot send** reconciliation (tasks aren't sends).
+8. **Calls: attempts vs conversations** counted separately; never collapse on `task_id` (usually null); conversation = same contact + tight window; real conversation only when `human = true`.
+9. **Exclude internal-only-recipient** activity from outreach counts.
 
 **Success metric:** one flat table returns every activity with account + contact + channel attached; a manual spot-check of one rep's day matches the source tools; no double-counting.
 
