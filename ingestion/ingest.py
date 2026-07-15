@@ -129,16 +129,29 @@ create table if not exists raw_hubspot_emails (
 -- body columns added 2026-07-15 (going-forward capture; older rows stay null)
 alter table raw_hubspot_emails add column if not exists body_preview text;
 alter table raw_hubspot_emails add column if not exists body_html text;
+-- recipient columns added 2026-07-15 (raw format varies: 'a@b.com' / 'Name <a@b.com>'; normalize in Phase 3)
+alter table raw_hubspot_emails add column if not exists to_email text;
+alter table raw_hubspot_emails add column if not exists cc_email text;
 create table if not exists raw_hubspot_meetings (
     id text primary key,
     hs_timestamp timestamptz,
     title text,
     object_source text, object_source_detail text,
     owner_id text,
+    outcome text, attendee_owner_ids text,
+    start_time timestamptz, end_time timestamptz,
     activity_date date,
     raw jsonb not null,
     ingested_at timestamptz not null default now()
 );
+-- outcome/attendee columns added 2026-07-15. outcome mutates after the meeting
+-- (held/cancelled/no-show), so meetings upsert with UPDATE, not insert-only.
+-- attendee_owner_ids = internal attendees only (external attendees are HubSpot
+-- associations, not properties — not available via this pull).
+alter table raw_hubspot_meetings add column if not exists outcome text;
+alter table raw_hubspot_meetings add column if not exists attendee_owner_ids text;
+alter table raw_hubspot_meetings add column if not exists start_time timestamptz;
+alter table raw_hubspot_meetings add column if not exists end_time timestamptz;
 create table if not exists ingestion_runs (
     run_id bigint generated always as identity primary key,
     activity_date date not null,
@@ -156,17 +169,28 @@ create table if not exists ingestion_runs (
 """
 
 
-def upsert(conn, table, columns, rows):
-    """Insert rows, skipping ones whose id already exists. Returns count newly inserted."""
+def upsert(conn, table, columns, rows, update_cols=None):
+    """Insert rows keyed on id. Returns count newly inserted.
+
+    Default: skip rows whose id already exists (raw layer is append-only).
+    With update_cols: refresh those columns on existing rows too (used for
+    meetings, where outcome/attendees mutate after the meeting happens).
+    Only true inserts count as "new" (xmax = 0 marks a freshly inserted row).
+    """
     if not rows:
         return 0
     cols = ", ".join(columns)
+    if update_cols:
+        setters = ", ".join(f"{c} = excluded.{c}" for c in update_cols)
+        conflict = f"on conflict (id) do update set {setters}"
+    else:
+        conflict = "on conflict (id) do nothing"
     sql = (f"insert into {table} ({cols}) values %s "
-           f"on conflict (id) do nothing returning id")
+           f"{conflict} returning (xmax = 0) as inserted")
     with conn.cursor() as cur:
         result = execute_values(cur, sql, rows, fetch=True)
     conn.commit()
-    return len(result)
+    return sum(1 for r in result if r[0])
 
 
 def log_run(conn, **kw):
@@ -292,6 +316,7 @@ def hs_search(obj, token, props, ts_from_ms, ts_to_ms):
 def ingest_hs_emails(conn, token, day_start, day_end, activity_date):
     props = ["hs_timestamp", "hs_email_subject", "hs_email_direction", "hs_object_source",
              "hs_object_source_detail_1", "hubspot_owner_id", "hs_email_from_email",
+             "hs_email_to_email", "hs_email_cc_email", "hs_email_bcc_email",
              "hs_body_preview", "hs_email_html"]
     from_ms = int(day_start.timestamp() * 1000)
     to_ms = int(day_end.timestamp() * 1000)
@@ -312,19 +337,22 @@ def ingest_hs_emails(conn, token, day_start, day_end, activity_date):
             r["id"], parse_ts(p.get("hs_timestamp")), subject or None,
             p.get("hs_email_direction"), p.get("hs_object_source"), detail or None,
             p.get("hubspot_owner_id"), p.get("hs_email_from_email"),
+            p.get("hs_email_to_email") or None, p.get("hs_email_cc_email") or None,
             p.get("hs_body_preview") or None, p.get("hs_email_html") or None,
             activity_date, Json(r),
         ))
     cols = ["id", "hs_timestamp", "subject", "direction", "object_source",
-            "object_source_detail", "owner_id", "from_email", "body_preview", "body_html",
-            "activity_date", "raw"]
+            "object_source_detail", "owner_id", "from_email", "to_email", "cc_email",
+            "body_preview", "body_html", "activity_date", "raw"]
     new = upsert(conn, "raw_hubspot_emails", cols, rows)
     return fetched, new, excl
 
 
 def ingest_hs_meetings(conn, token, day_start, day_end, activity_date):
     props = ["hs_timestamp", "hs_meeting_title", "hs_object_source",
-             "hs_object_source_detail_1", "hubspot_owner_id"]
+             "hs_object_source_detail_1", "hubspot_owner_id",
+             "hs_meeting_outcome", "hs_attendee_owner_ids",
+             "hs_meeting_start_time", "hs_meeting_end_time"]
     from_ms = int(day_start.timestamp() * 1000)
     to_ms = int(day_end.timestamp() * 1000)
     rows, fetched = [], 0
@@ -334,33 +362,35 @@ def ingest_hs_meetings(conn, token, day_start, day_end, activity_date):
         rows.append((
             r["id"], parse_ts(p.get("hs_timestamp")), p.get("hs_meeting_title"),
             p.get("hs_object_source"), p.get("hs_object_source_detail_1"),
-            p.get("hubspot_owner_id"), activity_date, Json(r),
+            p.get("hubspot_owner_id"),
+            p.get("hs_meeting_outcome") or None, p.get("hs_attendee_owner_ids") or None,
+            parse_ts(p.get("hs_meeting_start_time")), parse_ts(p.get("hs_meeting_end_time")),
+            activity_date, Json(r),
         ))
     cols = ["id", "hs_timestamp", "title", "object_source", "object_source_detail",
-            "owner_id", "activity_date", "raw"]
-    new = upsert(conn, "raw_hubspot_meetings", cols, rows)
+            "owner_id", "outcome", "attendee_owner_ids", "start_time", "end_time",
+            "activity_date", "raw"]
+    # Meetings mutate after first capture (outcome set once held/cancelled/no-show,
+    # reschedules move times) — so refresh those fields on re-runs instead of
+    # insert-only. The other raw tables stay append-only.
+    new = upsert(conn, "raw_hubspot_meetings", cols, rows,
+                 update_cols=["hs_timestamp", "title", "outcome", "attendee_owner_ids",
+                              "start_time", "end_time", "raw"])
     return fetched, new
 
 
 # ----------------------------------------------------------------------------- main
-def main():
-    load_env()
-    ample_key = require("AMPLEMARKET_API_KEY")
-    hs_token = require("HUBSPOT_PRIVATE_APP_TOKEN")
-    dsn = require("SUPABASE_DB_URL")
+# Each scheduled run re-checks the last LOOKBACK_DAYS days, not just yesterday:
+# some records land in the source tools hours after the day's first snapshot
+# (observed live), and re-runs are idempotent, so the sweep is free of dupes.
+LOOKBACK_DAYS = 3
 
-    if len(sys.argv) > 1:
-        activity_date = date.fromisoformat(sys.argv[1])
-    else:
-        activity_date = (datetime.now(timezone.utc) - timedelta(days=1)).date()
+
+def run_day(conn, ample_key, hs_token, activity_date):
+    """Run the 4 ingestion jobs for one day. Jobs fail independently; returns
+    a list of (source, object_type, error) for any that failed."""
     day_start = datetime(activity_date.year, activity_date.month, activity_date.day, tzinfo=timezone.utc)
     day_end = day_start + timedelta(days=1)
-
-    print(f"=== CA Activity ingestion for {activity_date} (UTC) ===")
-    conn = psycopg2.connect(dsn, connect_timeout=20)
-    with conn.cursor() as cur:
-        cur.execute(DDL)
-    conn.commit()
 
     jobs = [
         ("amplemarket", "tasks",
@@ -373,7 +403,7 @@ def main():
          lambda: ingest_hs_meetings(conn, hs_token, day_start, day_end, activity_date)),
     ]
 
-    summary = []
+    failures = []
     for source, obj, fn in jobs:
         started = datetime.now(timezone.utc)
         try:
@@ -389,19 +419,51 @@ def main():
                     rows_fetched=fetched, rows_new=new, rows_excluded=excluded,
                     exclusion_breakdown=Json(excl) if excl else None,
                     status="ok", error=None)
-            summary.append((source, obj, fetched, new, excluded, excl))
             print(f"  {source}/{obj}: fetched={fetched} new={new} excluded={excluded} {excl or ''}")
         except Exception as e:
+            # A failed write can leave the connection in an aborted state;
+            # roll back so logging and the remaining jobs can still proceed.
+            conn.rollback()
             log_run(conn, activity_date=activity_date, source=source, object_type=obj,
                     started_at=started, finished_at=datetime.now(timezone.utc),
                     rows_fetched=None, rows_new=None, rows_excluded=None,
                     exclusion_breakdown=None, status="error", error=str(e)[:500])
             print(f"  {source}/{obj}: ERROR {e}")
-            raise
+            failures.append((source, obj, str(e)))
+    return failures
+
+
+def main():
+    load_env()
+    ample_key = require("AMPLEMARKET_API_KEY")
+    hs_token = require("HUBSPOT_PRIVATE_APP_TOKEN")
+    dsn = require("SUPABASE_DB_URL")
+
+    if len(sys.argv) > 1:
+        # explicit date given (manual run / backfill): that single day only
+        days = [date.fromisoformat(sys.argv[1])]
+    else:
+        # scheduled run: yesterday plus a lookback sweep for late arrivals
+        yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).date()
+        days = [yesterday - timedelta(days=i) for i in range(LOOKBACK_DAYS)]
+
+    conn = psycopg2.connect(dsn, connect_timeout=20)
+    with conn.cursor() as cur:
+        cur.execute(DDL)
+    conn.commit()
+
+    all_failures = []
+    for activity_date in days:
+        print(f"=== CA Activity ingestion for {activity_date} (UTC) ===")
+        all_failures += run_day(conn, ample_key, hs_token, activity_date)
 
     conn.close()
+    if all_failures:
+        print(f"=== done with {len(all_failures)} FAILED job(s): "
+              + ", ".join(f"{s}/{o} ({d})" for s, o, d in
+                          [(s, o, str(e)[:60]) for s, o, e in all_failures]) + " ===")
+        sys.exit(1)  # every job ran, but surface the failure to the scheduler
     print("=== done ===")
-    return summary
 
 
 if __name__ == "__main__":
