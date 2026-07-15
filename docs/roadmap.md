@@ -2,7 +2,7 @@
 
 **Start here if you're building.** Read `context.md` (why this exists) and `spec.md` (the end-state design, including verified AmpleMarket + HubSpot API facts in §9) before starting. `decisions.md` records every settled choice — don't reverse one without adding a superseding entry.
 
-**8 phases (0–7).** Each is self-contained, ships something verifiable, and depends only on the phases before it. Phases 0–3 build the data foundation, Phase 4 delivers the first output leaders can use, and 5–7 add depth, quality, and the dashboard.
+**8 phases (0–7), plus a small ingestion add-on (1.5).** Each is self-contained, ships something verifiable, and depends only on the phases before it. Phases 0–3 build the data foundation, Phase 4 delivers the first output leaders can use, and 5–7 add depth, quality, and the dashboard. (Phase 1.5 is a short raw-ingestion step slotted between 1 and 2 — see below.)
 
 ---
 
@@ -14,7 +14,7 @@ Phases 0–1 are built and live. Before writing anything, orient here:
 - **Runs:** daily via GitHub Actions (`.github/workflows/daily-run.yml`); secrets (API keys, DB URL) live in GitHub Secrets, never in the repo.
 - **DB connection:** direct Postgres via the `SUPABASE_DB_URL` transaction-pooler string, read from env or a local `.env` (see `.env.example`; real `.env` is gitignored).
 - **Tables already in Supabase (raw landing layer):** `raw_amplemarket_tasks`, `raw_amplemarket_calls`, `raw_hubspot_emails`, `raw_hubspot_meetings`, plus an `ingestion_runs` audit log. Each has a few extracted columns + the full source payload in a `raw` jsonb column. Primary key = source id; re-runs are idempotent (`ON CONFLICT DO NOTHING`). The **normalized** schema (activity fact + dimensions) does **not** exist yet — it begins at Phase 3.
-- **⚠️ Only *activity* is ingested — NOT the HubSpot Company/Contact objects.** There are no `raw_hubspot_companies` / `raw_hubspot_contacts` tables yet, so account attributes (domain, ICP tier, vertical, `target account owner`) and contact attributes (jobtitle, company association) have no data behind them despite appearing in the spec's data model. Ingesting these is the **first task of Phase 2** (see below) and blocks Phase 2 resolution + Phase 4 coverage.
+- **⚠️ Only *activity* is ingested — NOT the HubSpot Company/Contact objects.** There are no `raw_hubspot_companies` / `raw_hubspot_contacts` tables yet, so account attributes (domain, ICP tier, vertical, `target account owner`) and contact attributes (jobtitle, company association) have no data behind them despite appearing in the spec's data model. Ingesting these is **Phase 1.5** (see below) and blocks Phase 2 resolution + Phase 4 coverage.
 - **The normalized data model, source/dedup rules, and verified API facts** are in `spec.md` (§2, §3, §9). Every settled choice and every correction found during the build is in `decisions.md`. Read both before Phase 2+.
 
 ---
@@ -63,11 +63,25 @@ The person owning this project is a **non-technical PM**. The building agent mus
 
 ---
 
+## Phase 1.5 — Ingest HubSpot Company + Contact objects (raw)
+
+**Plain terms:** So far we've only copied *activity* (emails, calls, meetings, tasks). We've never copied the actual **company** and **contact** records themselves — the account's industry/tier/owner, the person's job title and which company they belong to. The next phases need those, so this short step copies them in, the same faithful way Phase 1 copies activity.
+
+**Why it's here (gap found 2026-07-15):** Phase 1 never needed these objects, so they were never pulled — but the spec's `account`/`contact` dimensions (§2) and Phase 4's coverage assume their fields exist. Without this step, Phase 2 has nothing to resolve/dedup *against* and Phase 4 coverage can't be computed. Split out as its own step (not folded into Phase 2) because it's plain ingestion work, same shape as Phase 1 — not identity logic.
+
+**Work:** two new raw pulls into new landing tables (`raw_hubspot_companies`, `raw_hubspot_contacts`), same pattern as Phase 1 (extracted columns + full `raw` payload, keyed on HubSpot id, idempotent). Capture at least: **companies** — `domain`, `account_icp_tier_validated`, `account_icp__tier_new`, `vertical__aligned_by_team`, `target account owner`, name; **contacts** — `email`, `jobtitle`, associated company id. Reuse `ingest.py`'s HubSpot Search patterns (auth, pagination, rate limits). No normalization/dedup here — that's Phase 2/3.
+
+**Success metric:** both tables populate; every company has a domain (or is flagged), every contact an email; counts are sane against HubSpot's own totals.
+
+**PM check:** Claude shows you row counts for companies + contacts and a few sample records that match what you see in HubSpot.
+
+**Depends on:** Phase 1. (Independent of the rep-roster work — can be built in parallel.)
+
+---
+
 ## Phase 2 — Identity resolution + account de-duplication
 
 **Plain terms:** Make sure "the same person," "the same company," **and "the same rep"** are each recognised as one — even across two systems, despite HubSpot sometimes storing a company twice, and despite a rep having more than one login/email. Without this, activity splits across duplicates and the numbers come out wrong.
-
-**⚠️ PREREQUISITE — ingest HubSpot Company + Contact objects first (NOT yet built).** Phase 1 only pulls **activity** (emails/meetings/tasks/calls). It has **never ingested the HubSpot Company or Contact CRM objects**, yet everything below — and Phase 4's coverage — assumes their fields exist. The spec's `account`/`contact` dimensions (§2) name source fields (`domain`, `account_icp_tier_validated`, `vertical__aligned_by_team`, `target account owner`; contact `email`, `jobtitle`, company association) that **have no data behind them yet.** So Phase 2 starts by adding two raw pulls, same faithful/idempotent pattern as Phase 1 (new `raw_hubspot_companies` / `raw_hubspot_contacts` landing tables): companies (for domain-dedup + `target account owner` coverage + ICP/vertical quality lens) and contacts (for email/jobtitle resolution + contact→company association). Without this, identity resolution has nothing to resolve *against* and Phase 4 coverage cannot be computed. (Gap found 2026-07-15 reviewing forward phases; activity ingestion never needed these objects, so they were never pulled.)
 
 **Work:**
 - **Reps (new — discovered in Phase 1):** agree an **authoritative CA roster** (AmpleMarket's `role` field is unreliable — active reps show as `admin`); **link each rep's multiple accounts + email addresses into one rep identity** (e.g. Nico `@encord.ai`/`@encord.com`, Yuvi ×2, Callum duplicate). Without this, a rep's own emails get misread as inbound and their activity is split.
@@ -80,7 +94,7 @@ The person owning this project is a **non-technical PM**. The building agent mus
 
 **PM check:** Claude shows you the match rate, the linked rep identities, and a short list of anything it couldn't confidently match, for your eyes.
 
-**Depends on:** Phase 1. The **technical** rep-identity map (which internal ID = which person + addresses) is available **now** from the AmpleMarket `/users` API — *not* blocked on Ray. Ray / sales leadership are needed only to confirm **who counts as a CA** (team membership), which can proceed in parallel.
+**Depends on:** Phase 1.5 (needs the company/contact objects to resolve against). The **technical** rep-identity map (which internal ID = which person + addresses) is available **now** from the AmpleMarket `/users` API — *not* blocked on Ray. Ray / sales leadership are needed only to confirm **who counts as a CA** (team membership), which can proceed in parallel.
 
 ---
 
@@ -174,6 +188,6 @@ The person owning this project is a **non-technical PM**. The building agent mus
 ## Sequencing notes
 
 - **First value lands at Phase 4** — the aggregate view the stakeholder called "the first job."
-- Phases 0–3 have no user-visible output but are prerequisites; don't skip or reorder.
+- Phases 0–3 (incl. 1.5) have no user-visible output but are prerequisites; don't skip or reorder.
 - Phase 6's threshold/flag behaviour is a config decision, not a blocker — display-only works until benchmarks are set.
 - **v2** (message-body / tailored-vs-generic analysis) sits after Phase 7: switch on the AmpleMarket webhook and layer analysis on the already-present `body` field. The `body` field must stay in the schema from Phase 3 so v2 needs no rebuild.
