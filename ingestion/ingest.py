@@ -2,23 +2,31 @@
 """
 CA Activity Visibility — Phase 1: daily raw ingestion.
 
-Copies one day of raw activity from AmpleMarket (tasks + calls) and HubSpot
-(emails + meetings) into raw landing tables in Supabase/Postgres.
+Copies raw activity from AmpleMarket (tasks + calls) and HubSpot (emails +
+meetings) into raw landing tables in Supabase/Postgres. A scheduled run (no
+date argument) sweeps the last LOOKBACK_DAYS days, because both sources keep
+surfacing a finished day's records for days afterwards (observed live).
 
 Design notes (see docs/spec.md, docs/decisions.md):
 - RAW copy: store the source payload faithfully in a `raw` jsonb column plus a
   few extracted columns for convenience. No normalization here (that's Phase 3).
-- Idempotent: primary key = source id; INSERT ... ON CONFLICT DO NOTHING, so a
-  second run of the same day inserts 0 new rows.
+- Idempotent: primary key = source id. Tasks/calls/emails are append-only
+  (ON CONFLICT DO NOTHING — re-running a day adds only genuinely new rows).
+  Meetings are the one exception: they update-on-conflict, because a meeting's
+  outcome/times mutate after first capture (held / cancelled / rescheduled).
 - Faithful raw copy: HubSpot emails are kept regardless of origin (each tagged
   via object_source/detail), because AmpleMarket's API does NOT expose sent
   emails -- the HubSpot copy is the only record of them. Only genuine warmup
   noise is filtered out. Precise task<->send de-duplication is deferred to
   Phase 3, where the full picture is available.
-- AmpleMarket ignores date filters, so we page newest-first and stop once we
-  cross below the target day.
+- AmpleMarket ignores date filters, so we page newest-first and stop once a
+  WHOLE page falls below the target day (the feed is not perfectly ordered,
+  so stopping at the first older record was observed to miss items).
+- Jobs fail independently; failures are logged to ingestion_runs and the
+  process exits non-zero at the end so the scheduler shows the failure.
 
-Run:  python ingestion/ingest.py [YYYY-MM-DD]   (default: yesterday UTC)
+Run:  python ingestion/ingest.py [YYYY-MM-DD]   (explicit date: that day only;
+      default: yesterday + LOOKBACK_DAYS-1 prior days)
 """
 import os, sys, json, time, urllib.request, urllib.error
 from datetime import datetime, timedelta, timezone, date
@@ -57,6 +65,7 @@ def require(name):
 
 # ----------------------------------------------------------------------------- http helpers
 def http_get(url, headers, tries=4):
+    last_err = None
     for attempt in range(tries):
         try:
             req = urllib.request.Request(url, headers=headers)
@@ -64,12 +73,19 @@ def http_get(url, headers, tries=4):
                 return json.loads(r.read())
         except urllib.error.HTTPError as e:
             if e.code == 429 or e.code >= 500:
+                last_err = e
                 time.sleep(1.5 * (attempt + 1)); continue
             raise
-    raise RuntimeError(f"GET failed after {tries} tries: {url}")
+        except OSError as e:
+            # network blip (connection reset / DNS / socket timeout) — retry
+            # like a 5xx. (HTTPError is caught above; it subclasses OSError.)
+            last_err = e
+            time.sleep(1.5 * (attempt + 1)); continue
+    raise RuntimeError(f"GET failed after {tries} tries: {url} (last: {last_err})")
 
 
 def http_post(url, headers, payload, tries=4):
+    last_err = None
     for attempt in range(tries):
         try:
             req = urllib.request.Request(url, data=json.dumps(payload).encode(),
@@ -78,9 +94,14 @@ def http_post(url, headers, payload, tries=4):
                 return json.loads(r.read())
         except urllib.error.HTTPError as e:
             if e.code == 429 or e.code >= 500:
+                last_err = e
                 time.sleep(1.5 * (attempt + 1)); continue
             raise
-    raise RuntimeError(f"POST failed after {tries} tries: {url}")
+        except OSError as e:
+            # network blip — retry like a 5xx (HTTPError caught above)
+            last_err = e
+            time.sleep(1.5 * (attempt + 1)); continue
+    raise RuntimeError(f"POST failed after {tries} tries: {url} (last: {last_err})")
 
 
 def parse_ts(s):
@@ -212,19 +233,25 @@ def ample_users(key):
     return list(ample_paged("/users?page[size]=20", key, "users"))
 
 
-def ample_paged(path, key, list_field):
-    """Yield items across cursor pages (newest first), following _links.next."""
+def ample_pages(path, key, list_field):
+    """Yield whole pages (lists of items, newest first), following _links.next."""
     url = AMPLE_BASE + path
     headers = {"Authorization": f"Bearer {key}"}
     pages = 0
     while url and pages < 200:
         data = http_get(url, headers)
-        for item in data.get(list_field, []):
-            yield item
+        yield data.get(list_field, [])
         nxt = (data.get("_links") or {}).get("next", {}).get("href")
         url = AMPLE_BASE + nxt if nxt else None
         pages += 1
         time.sleep(0.15)  # stay well under 500 req/min
+
+
+def ample_paged(path, key, list_field):
+    """Yield items across cursor pages (newest first)."""
+    for page in ample_pages(path, key, list_field):
+        for item in page:
+            yield item
 
 
 def ingest_ample_tasks(conn, key, day_start, day_end, activity_date):
@@ -235,22 +262,25 @@ def ingest_ample_tasks(conn, key, day_start, day_end, activity_date):
         if not uid:
             continue
         try:
-            page = ample_paged(f"/tasks?user_id={uid}&status=completed&page[size]=100", key, "tasks")
-            for t in page:
-                ts = parse_ts(t.get("finished_on"))
-                if ts is None:
-                    continue
-                if ts >= day_end:
-                    continue        # too new; keep paging back in time
-                if ts < day_start:
-                    break           # crossed below the day -> stop this user
-                fetched += 1
-                c = t.get("contact") or {}
-                rows.append((
-                    t["id"], t.get("user_id"), t.get("user_email"), t.get("type"),
-                    t.get("status"), t.get("automatic"), parse_ts(t.get("due_on")), ts,
-                    c.get("id"), c.get("email"), c.get("name"), activity_date, Json(t),
-                ))
+            for page in ample_pages(f"/tasks?user_id={uid}&status=completed&page[size]=100", key, "tasks"):
+                page_ts = [parse_ts(t.get("finished_on")) for t in page]
+                for t, ts in zip(page, page_ts):
+                    if ts is None or ts >= day_end or ts < day_start:
+                        continue    # outside the target day
+                    fetched += 1
+                    c = t.get("contact") or {}
+                    rows.append((
+                        t["id"], t.get("user_id"), t.get("user_email"), t.get("type"),
+                        t.get("status"), t.get("automatic"), parse_ts(t.get("due_on")), ts,
+                        c.get("id"), c.get("email"), c.get("name"), activity_date, Json(t),
+                    ))
+                # Stop only once a WHOLE page is older than the day. The feed is
+                # roughly newest-first but provably not perfectly ordered (records
+                # for a day keep surfacing later, interleaved) — breaking on the
+                # first old record was observed to miss items hiding behind it.
+                known = [ts for ts in page_ts if ts is not None]
+                if known and max(known) < day_start:
+                    break
         except urllib.error.HTTPError as e:
             if e.code == 400:        # e.g. deactivated/invalid user in the user list
                 skipped_users += 1
@@ -266,21 +296,22 @@ def ingest_ample_tasks(conn, key, day_start, day_end, activity_date):
 
 def ingest_ample_calls(conn, key, day_start, day_end, activity_date):
     rows, fetched = [], 0
-    for c in ample_paged("/calls?page[size]=100", key, "calls"):
-        ts = parse_ts(c.get("start_date"))
-        if ts is None:
-            continue
-        if ts >= day_end:
-            continue
-        if ts < day_start:
+    for page in ample_pages("/calls?page[size]=100", key, "calls"):
+        page_ts = [parse_ts(c.get("start_date")) for c in page]
+        for c, ts in zip(page, page_ts):
+            if ts is None or ts >= day_end or ts < day_start:
+                continue    # outside the target day
+            fetched += 1
+            ct = c.get("contact") or {}
+            rows.append((
+                c["id"], c.get("user_id"), ts, c.get("duration"), c.get("answered"),
+                c.get("human"), c.get("external"), c.get("task_id"),
+                ct.get("id"), ct.get("email"), ct.get("name"), activity_date, Json(c),
+            ))
+        # whole-page stop rule — same rationale as tasks (feed not perfectly ordered)
+        known = [ts for ts in page_ts if ts is not None]
+        if known and max(known) < day_start:
             break
-        fetched += 1
-        ct = c.get("contact") or {}
-        rows.append((
-            c["id"], c.get("user_id"), ts, c.get("duration"), c.get("answered"),
-            c.get("human"), c.get("external"), c.get("task_id"),
-            ct.get("id"), ct.get("email"), ct.get("name"), activity_date, Json(c),
-        ))
     cols = ["id", "user_id", "start_date", "duration", "answered", "human", "external",
             "task_id", "contact_id", "contact_email", "contact_name", "activity_date", "raw"]
     new = upsert(conn, "raw_amplemarket_calls", cols, rows)
@@ -381,8 +412,12 @@ def ingest_hs_meetings(conn, token, day_start, day_end, activity_date):
 
 # ----------------------------------------------------------------------------- main
 # Each scheduled run re-checks the last LOOKBACK_DAYS days, not just yesterday:
-# some records land in the source tools hours after the day's first snapshot
-# (observed live), and re-runs are idempotent, so the sweep is free of dupes.
+# records keep surfacing in the source APIs for days after they happened
+# (observed live: +119 tasks an hour later, +72 more a day later, for one day).
+# Re-runs are idempotent, so the sweep is free of dupes.
+# IS 3 ENOUGH? Monitor ingestion_runs: if the OLDEST day of the sweep still
+# reports rows_new > 0 regularly, records are arriving later than the window
+# reaches — widen LOOKBACK_DAYS.
 LOOKBACK_DAYS = 3
 
 
