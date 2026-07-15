@@ -121,10 +121,14 @@ create table if not exists raw_hubspot_emails (
     subject text, direction text,
     object_source text, object_source_detail text,
     owner_id text, from_email text,
+    body_preview text, body_html text,
     activity_date date,
     raw jsonb not null,
     ingested_at timestamptz not null default now()
 );
+-- body columns added 2026-07-15 (going-forward capture; older rows stay null)
+alter table raw_hubspot_emails add column if not exists body_preview text;
+alter table raw_hubspot_emails add column if not exists body_html text;
 create table if not exists raw_hubspot_meetings (
     id text primary key,
     hs_timestamp timestamptz,
@@ -287,7 +291,8 @@ def hs_search(obj, token, props, ts_from_ms, ts_to_ms):
 
 def ingest_hs_emails(conn, token, day_start, day_end, activity_date):
     props = ["hs_timestamp", "hs_email_subject", "hs_email_direction", "hs_object_source",
-             "hs_object_source_detail_1", "hubspot_owner_id", "hs_email_from_email"]
+             "hs_object_source_detail_1", "hubspot_owner_id", "hs_email_from_email",
+             "hs_body_preview", "hs_email_html"]
     from_ms = int(day_start.timestamp() * 1000)
     to_ms = int(day_end.timestamp() * 1000)
     rows, fetched, excl = [], 0, {"warmup": 0}
@@ -306,10 +311,13 @@ def ingest_hs_emails(conn, token, day_start, day_end, activity_date):
         rows.append((
             r["id"], parse_ts(p.get("hs_timestamp")), subject or None,
             p.get("hs_email_direction"), p.get("hs_object_source"), detail or None,
-            p.get("hubspot_owner_id"), p.get("hs_email_from_email"), activity_date, Json(r),
+            p.get("hubspot_owner_id"), p.get("hs_email_from_email"),
+            p.get("hs_body_preview") or None, p.get("hs_email_html") or None,
+            activity_date, Json(r),
         ))
     cols = ["id", "hs_timestamp", "subject", "direction", "object_source",
-            "object_source_detail", "owner_id", "from_email", "activity_date", "raw"]
+            "object_source_detail", "owner_id", "from_email", "body_preview", "body_html",
+            "activity_date", "raw"]
     new = upsert(conn, "raw_hubspot_emails", cols, rows)
     return fetched, new, excl
 
