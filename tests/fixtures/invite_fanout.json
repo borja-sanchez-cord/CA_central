@@ -1,0 +1,35 @@
+{
+ "note": "Calendar invite logged once per attendee (George Lim, Camtek intro, 2 recipients 35min apart). Invite-classified rows are excluded from email counts; recipient-less collapse permitted only for these.",
+ "rows": [
+  {
+   "id": "503509228756",
+   "hs_timestamp": "2026-07-14T17:05:38+00:00",
+   "subject": "[Apollo] [Email] [<<] Invitation: Camtek X Encord Introduction @ Thu 23 Jul 2026 11am - 11:30am (BST) (Kamil Mouthon)",
+   "direction": "EMAIL",
+   "object_source": "INTEGRATION",
+   "object_source_detail": "Apollo Integration",
+   "owner_id": "538916758",
+   "from_email": "george.lim@encord.com",
+   "to_email": "Kamil Mouthon <kamil@encord.com>;<orenp@camtek.com>",
+   "cc_email": null,
+   "bcc_email": null,
+   "body_preview": "Camtek X Encord Introduction Join with Google Meet \u2013 You have been invited by George Lim to attend an event named Camtek X Encord Introduction on Thursday 23 Jul 2026 \u22c5 11am \u2013 11:30am (United Kingdom Time). \u00a0 Join with Google Meet Meeting link meet.google.com/jvn-ybtv-vfk Join by phone (GB) +44 20 3",
+   "activity_date": "2026-07-14"
+  },
+  {
+   "id": "503518156989",
+   "hs_timestamp": "2026-07-14T17:40:05+00:00",
+   "subject": "[Apollo] [Email] [<<] Invitation: Camtek X Encord Introduction @ Thu 23 Jul 2026 11am - 11:30am (BST) (Kamil Mouthon)",
+   "direction": "EMAIL",
+   "object_source": "INTEGRATION",
+   "object_source_detail": "Apollo Integration",
+   "owner_id": "538916758",
+   "from_email": "george.lim@encord.com",
+   "to_email": "Kamil Mouthon <kamil@encord.com>;Yianni Manolakakis <yianni@encord.com>;<orenp@camtek.com>",
+   "cc_email": null,
+   "bcc_email": null,
+   "body_preview": "Camtek X Encord Introduction Join with Google Meet \u2013 You have been invited by George Lim to attend an event named Camtek X Encord Introduction on Thursday 23 Jul 2026 \u22c5 11am \u2013 11:30am (United Kingdom Time). \u00a0 Join with Google Meet Meeting link meet.google.com/jvn-ybtv-vfk Join by phone (GB) +44 20 3",
+   "activity_date": "2026-07-14"
+  }
+ ]
+}

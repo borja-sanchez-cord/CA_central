@@ -1,0 +1,35 @@
+{
+ "note": "Same meeting under two HubSpot ids (identical title+start_time). Dedup key (title, start_time, owner).",
+ "rows": [
+  {
+   "id_a": "503327125736",
+   "id_b": "503436897491",
+   "title": "Encord & TFH | Weekly",
+   "start_time": "2026-07-15T15:00:00+00:00",
+   "owner_a": "538916758",
+   "owner_b": "538916758",
+   "outcome_a": null,
+   "outcome_b": null
+  },
+  {
+   "id_a": "502500275398",
+   "id_b": "503673889016",
+   "title": "Boston Dynamics - Encord | Weekly Project Sync",
+   "start_time": "2026-07-15T14:30:00+00:00",
+   "owner_a": "1131889625",
+   "owner_b": "1131889625",
+   "outcome_a": null,
+   "outcome_b": null
+  },
+  {
+   "id_a": "498851060976",
+   "id_b": "503067803874",
+   "title": "Global Sales Enablement Bi-Weekly",
+   "start_time": "2026-07-14T15:30:00+00:00",
+   "owner_a": "876598006",
+   "owner_b": "876598006",
+   "outcome_a": null,
+   "outcome_b": null
+  }
+ ]
+}

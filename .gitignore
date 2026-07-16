@@ -4,3 +4,7 @@
 # Real secrets — never upload. Only .env.example is tracked.
 .env
 .env.local
+
+# local scratch files from ad-hoc rep-day audits (never commit)
+scratch_*.py
+scratchpad_*.json

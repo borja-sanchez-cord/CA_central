@@ -1,0 +1,21 @@
+name: Rule tests
+
+# Every push runs the Phase 3 rule tests (pure logic + real validated
+# fixtures — no database, no API keys needed). A red X here means a
+# dedup/attribution rule regressed against a case we know the answer to.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r ingestion/requirements.txt pytest
+      - run: python -m pytest tests/ -q

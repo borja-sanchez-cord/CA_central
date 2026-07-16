@@ -1,0 +1,53 @@
+{
+ "note": "Repeated dials at one contact in a tight window = 1 conversation, N attempts. task_id is usually null \u2014 group by contact + time window, never task_id.",
+ "rows": [
+  {
+   "id": "019f6285-a529-742c-b1ce-1a5c85b8eabb",
+   "user_id": "019d6ddf-20b9-71ee-aee5-7c5bfdf42ddb",
+   "start_date": "2026-07-14 21:25:53+00:00",
+   "duration": 3,
+   "answered": true,
+   "human": false,
+   "contact_id": "019e68cf-9947-7644-a88e-14b59fca3a99",
+   "contact_email": "nikgoel@paypal.com",
+   "contact_name": "Nikhil Goel",
+   "activity_date": "2026-07-14"
+  },
+  {
+   "id": "019f6285-cdd2-7513-bd66-790b608948d0",
+   "user_id": "019d6ddf-20b9-71ee-aee5-7c5bfdf42ddb",
+   "start_date": "2026-07-14 21:26:03+00:00",
+   "duration": 58,
+   "answered": true,
+   "human": false,
+   "contact_id": "019e68cf-9947-7644-a88e-14b59fca3a99",
+   "contact_email": "nikgoel@paypal.com",
+   "contact_name": "Nikhil Goel",
+   "activity_date": "2026-07-14"
+  },
+  {
+   "id": "019f6286-f88e-7572-8d7b-e00956dcca17",
+   "user_id": "019d6ddf-20b9-71ee-aee5-7c5bfdf42ddb",
+   "start_date": "2026-07-14 21:27:20+00:00",
+   "duration": 31,
+   "answered": true,
+   "human": false,
+   "contact_id": "019e68cf-9947-7644-a88e-14b59fca3a99",
+   "contact_email": "nikgoel@paypal.com",
+   "contact_name": "Nikhil Goel",
+   "activity_date": "2026-07-14"
+  },
+  {
+   "id": "019f632d-d89d-7d6c-a038-78d5c7c55eeb",
+   "user_id": "019d6ddf-20b9-71ee-aee5-7c5bfdf42ddb",
+   "start_date": "2026-07-15 00:29:36+00:00",
+   "duration": 32,
+   "answered": true,
+   "human": false,
+   "contact_id": "019e68cf-9947-7644-a88e-14b59fca3a99",
+   "contact_email": "nikgoel@paypal.com",
+   "contact_name": "Nikhil Goel",
+   "activity_date": "2026-07-15"
+  }
+ ]
+}

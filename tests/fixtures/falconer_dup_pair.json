@@ -1,0 +1,35 @@
+{
+ "note": "One send logged twice (Amplemarket + Apollo Integration copies, same second). Must collapse to 1.",
+ "rows": [
+  {
+   "id": "503197601016",
+   "hs_timestamp": "2026-07-13T06:00:34+00:00",
+   "subject": "[Apollo] [Email] [>>] Re: VLMs in identity",
+   "direction": "EMAIL",
+   "object_source": "INTEGRATION",
+   "object_source_detail": "Apollo Integration",
+   "owner_id": "29240871",
+   "from_email": "james.falconer@encord.com",
+   "to_email": "<nemanja.cukaric@1kosmos.com>",
+   "cc_email": null,
+   "bcc_email": null,
+   "body_preview": "Hi Nemanja, If you end up evaluating tools in this space, Roboflow is often in the mix for CV workflows. The main cases where Encord tends to win are when the data stops being \u201cjust images\u201d: liveness video (temporal QA matters), document-heavy flows (OCR plus review), or when security/compliance and",
+   "activity_date": "2026-07-13"
+  },
+  {
+   "id": "503212231868",
+   "hs_timestamp": "2026-07-13T06:00:34+00:00",
+   "subject": "Re: VLMs in identity",
+   "direction": "EMAIL",
+   "object_source": "INTEGRATION",
+   "object_source_detail": "Amplemarket",
+   "owner_id": "29240871",
+   "from_email": "james.falconer@encord.com",
+   "to_email": "nemanja.cukaric@1kosmos.com",
+   "cc_email": null,
+   "bcc_email": null,
+   "body_preview": "Hi Nemanja, If you end up evaluating tools in this space, Roboflow is often in the mix for CV workflows. The main cases where Encord tends to win are when the data stops being \u201cjust images\u201d: liveness video (temporal QA matters), document-heavy flows (OCR plus review), or when security/compliance and",
+   "activity_date": "2026-07-13"
+  }
+ ]
+}

@@ -45,3 +45,26 @@ jobs:
           HUBSPOT_PRIVATE_APP_TOKEN: ${{ secrets.HUBSPOT_PRIVATE_APP_TOKEN }}
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: python ingestion/ingest.py ${{ github.event.inputs.date }}
+
+      # Phase 2: rebuild the resolved identities from the fresh raw layer.
+      # Runs even if ingestion partially failed (yesterday's raw data still
+      # deserves fresh identities); its own guard rails abort on a bad roster.
+      - name: Rebuild identities
+        if: always()
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: python identity/resolve.py
+
+      # Phase 3: apply any new schema migrations, then rebuild the unified
+      # activity model (fact table + flat view) from raw + identities.
+      - name: Apply schema migrations
+        if: always()
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: python migrations/apply.py
+
+      - name: Rebuild activity model
+        if: always()
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: python model/build_activity.py

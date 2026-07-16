@@ -1,0 +1,35 @@
+{
+ "note": "Verified same-send pair whose Amplemarket copy ADDED 'Re: ' \u2014 reply-prefix strip + body+recipient+time must still merge them.",
+ "rows": [
+  {
+   "id": "503334958286",
+   "hs_timestamp": "2026-07-12T23:00:00+00:00",
+   "subject": "Real-time video effects",
+   "direction": "EMAIL",
+   "object_source": "EMAIL",
+   "object_source_detail": null,
+   "owner_id": "30088121",
+   "from_email": "laura.zhu@encord.com",
+   "to_email": "mattshepherd@canva.com",
+   "cc_email": null,
+   "bcc_email": null,
+   "body_preview": "Hi Matt, For video effects, the painful part usually shows up after you start shipping multiple builds (LoRA finetunes, quantisation passes, device-specific runtimes): QA becomes a moving target because \u201cgood\u201d depends on the clip, the motion, and the hardware. Some teams use Encord to keep a fixed, ",
+   "activity_date": "2026-07-12"
+  },
+  {
+   "id": "503097142505",
+   "hs_timestamp": "2026-07-12T23:00:08+00:00",
+   "subject": "Re: Real-time video effects",
+   "direction": "EMAIL",
+   "object_source": "INTEGRATION",
+   "object_source_detail": "Amplemarket",
+   "owner_id": "30088121",
+   "from_email": "laura.zhu@encord.com",
+   "to_email": "mattshepherd@canva.com",
+   "cc_email": null,
+   "bcc_email": null,
+   "body_preview": "Hi Matt, For video effects, the painful part usually shows up after you start shipping multiple builds (LoRA finetunes, quantisation passes, device-specific runtimes): QA becomes a moving target because \u201cgood\u201d depends on the clip, the motion, and the hardware. Some teams use Encord to keep a fixed, ",
+   "activity_date": "2026-07-12"
+  }
+ ]
+}
