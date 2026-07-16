@@ -147,7 +147,9 @@ Built as full-rebuild, reads raw tables only, run manually (not yet on the daily
 
 **Work:** per-rep totals by channel; accounts touched vs. owned (coverage % from `target account owner`); total contacts and contacts-per-account; time windows (7 days, 30 days, custom).
 
-**Success metric:** per-rep totals and coverage % reconcile against a manual check; coverage correctly reflects owned vs. touched.
+**⚠️ Meetings are the trap here — read before building any meeting metric (found 2026-07-16; full entry in `decisions.md`).** The raw meeting count is **bookings, not held meetings**, and is inflated by cancellations, same-prospect rebookings, and occasional internal events (validated on Andrew Bell: 13 booked → ~4–7 actually held). **Never show a single "meetings" number.** Derive `meeting_status` from the `outcome` column (held / canceled / scheduled / no-show / **unknown for null — never fold null into held**) and default every rollup to *held-only*, showing booked & canceled alongside. Any meetings-per-activity / conversion metric MUST use held (or at least booked-minus-canceled) as the denominator, or it flatters booking-link-heavy reps. Note the upstream hygiene limit: reps log an outcome on only ~20% of meetings, so most are "unknown" — a process fix (rep discipline), not a pipeline fix.
+
+**Success metric:** per-rep totals and coverage % reconcile against a manual check; coverage correctly reflects owned vs. touched; meeting figures split booked/held/canceled rather than a single inflated count.
 
 **PM check:** you look at one rep's totals + coverage % and it matches what you'd expect / can spot-verify.
 
