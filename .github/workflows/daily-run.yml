@@ -26,7 +26,13 @@ concurrency:
 jobs:
   ingest:
     runs-on: ubuntu-latest
-    timeout-minutes: 30   # a normal run takes minutes; don't let a hang sit for hours
+    # 120 min of headroom: a full 5-day sweep + entity sync + resolve + model
+    # needs ~35-40 min, but HubSpot's nightly "Today's Date" workflow re-stamps
+    # ALL ~152k companies at ~03:00 UTC, so the company mirror re-pulls the whole
+    # table (~20 min) every night (see decisions.md 2026-07-16). 30 min was too
+    # tight and cancelled the run mid-company-sync. Still bounded so a genuine
+    # hang can't sit for hours.
+    timeout-minutes: 120
     steps:
       - name: Check out the code
         uses: actions/checkout@v4
