@@ -8,3 +8,6 @@
 # local scratch files from ad-hoc rep-day audits (never commit)
 scratch_*.py
 scratchpad_*.json
+
+# generated reports (per-rep performance data — lives in Supabase, not git history)
+reports/
