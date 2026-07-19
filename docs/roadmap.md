@@ -141,7 +141,9 @@ Built as full-rebuild, reads raw tables only, run manually (not yet on the daily
 
 ---
 
-## Phase 4 — Aggregate rep view  ← first usable output
+## Phase 4 — Aggregate rep view  ✅ BUILT 2026-07-19 (first usable output)
+
+**As built:** one additive migration (`migrations/002_rep_scorecard.sql`) creating `rep_scorecard(start, end)` — a parameterised per-rep summary the dashboard can call with any date range — plus rolling preset views `rep_scorecard_7d` / `_30d` / `_alltime`. Read-only over `activity_flat` + `dim_ca` + `dim_account`; drop the four objects and Phases 0–3 are untouched. Meetings follow the guardrail below (booked/held/canceled/scheduled/unknown always sum to booked; primary-CA attribution as in every validated audit). Coverage = owned accounts (target-account owner) touched *by their owner* in the window. Validated: reproduces the Jul 6–9 audit workbook exactly for all 17 reps; coverage hand-checked (Constantin 81/135 = 60%). PM-facing render: `scorecard/build_scorecard.py` → gitignored `reports/` workbook.
 
 **Plain terms:** The first thing leaders can actually look at: per rep, how much they did, across which channels, and whether they're touching all the accounts they own or only some.
 
