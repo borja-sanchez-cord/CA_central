@@ -7,8 +7,13 @@ name: Daily activity sync
 
 on:
   schedule:
-    # Runs every day at 06:00 UTC. (Times in GitHub cron are always UTC.)
-    - cron: "0 6 * * *"
+    # Runs every day at 06:17 UTC. (Times in GitHub cron are always UTC.)
+    # Deliberately OFF the top of the hour: GitHub's scheduled runs are
+    # best-effort and get delayed/dropped under load, which peaks at :00.
+    # "0 6" was landing ~5h late every day (observed 2026-07-17..19); an
+    # off-hour minute meaningfully reduces the delay/skip odds (GitHub's own
+    # guidance). If a run is still missing hours later, trigger manually.
+    - cron: "17 6 * * *"
   # Lets us press a button to run it on demand (optionally for a specific date).
   workflow_dispatch:
     inputs:
