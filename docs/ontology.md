@@ -78,6 +78,19 @@ Computed per time window by the `rep_account_drilldown()` / `account_contact_dri
 | **Owner touches vs team touches** | On the neglect view: activity on an owned account by its owner, vs by any CA. "Owner 0, team 12" ≠ "0 and 0". | |
 | **Neglect view** | Every CA-owned account **including zeros** — an owned account nobody touched is still a row. | Touch counts are a floor (missing-company gap): zero means "no *recorded* touch". |
 
+## SAO measures (monthly — from Ray's tracker, Phase 7)
+
+These come **verbatim from Ray's "Global CA Performance Tracker"** (SAO Monthly
+Performance tab), mirrored into `sao_monthly` — we display, we never recompute.
+Monthly only; joined to activity by rep.
+
+| Measure | Definition | Watch out |
+|---|---|---|
+| **SAOs** | Sales Accepted Opportunities achieved that month, as Ray logs them. | Activity history starts Jul 6 2026 — July is a *partial* month next to SAOs; first cleanly comparable month is **Aug 2026**. An SAO usually comes from *earlier* outreach, so same-month activity-vs-SAO is context, never cause→effect. |
+| **SAO target / attainment** | That rep's monthly target from the tracker; attainment = SAOs ÷ target. | Ramping reps have reduced targets — the ramping flag is shown wherever reps are compared. |
+| **Inbound / event / outbound SAOs** | Ray's source split; outbound = SAOs − inbound − event — the ones outbound activity can claim. | |
+| **Pipeline created ($)** | Pipeline dollars from the tracker, per rep per month. | |
+
 ## Appendix — audit fields (for trust, not for reading)
 
 Every row also carries its full audit trail: the raw tool records behind it
@@ -90,7 +103,8 @@ that ever breaks.
 
 *Sources: `model/rules.py` + `model/build_activity.py` (activity rules),
 `migrations/001_activity_model.sql` (activity fields), `migrations/002_rep_scorecard.sql`
-(scorecard measures), `docs/decisions.md` (evidence for each caveat). Activity
-counts come from `activity_flat` and scorecard measures from `rep_scorecard()` —
-the same views every report and the dashboard read, so these definitions cannot
-drift between reports.*
+(scorecard measures), `migrations/004_sao_and_trends.sql` (SAO mirror + weekly/monthly
+trend views — which simply run `rep_scorecard()` per week/month), `docs/decisions.md`
+(evidence for each caveat). Activity counts come from `activity_flat` and scorecard
+measures from `rep_scorecard()` — the same views every report and the dashboard read,
+so these definitions cannot drift between reports.*

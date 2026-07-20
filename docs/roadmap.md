@@ -189,7 +189,9 @@ Built as full-rebuild, reads raw tables only, run manually (not yet on the daily
 
 ---
 
-## Phase 7 — Dashboard
+## Phase 7 — Dashboard — ✅ v1 BUILT 2026-07-20
+
+**As built (v1):** Streamlit app in `dashboard/` (blueprint + read-only contract in [dashboard.md](dashboard.md)) — six screens: Team overview, Rep detail (click a CA → scorecard, weekly trend, account breakdown → people), Heat map & neglect (rep × ICP tier + owned-account coverage incl. zero-touch Tier 0/1 flags), Trends (weekly; wraps `rep_scorecard()` so nothing is recomputed), SAO vs activity (monthly; Ray's tracker mirrored into `sao_monthly` via `sao/load_sao.py`; labelled directional), and Audit drill-to-raw (any number → the underlying `activity_flat` rows incl. email bodies and exclusion reasons). Reads ONLY the approved surfaces via the read-only `dashboard_reader` role (migration 004). Verified on screen against the DB (all-time total, weekly totals, audit counts — exact). Built before Phase 6 by PM decision (the leadership v1 ask needs no quality benchmarks — layered in later); correlation views deliberately deferred to ~Oct 2026. Hosted deployment + viewer logins pending.
 
 **Plain terms:** Wrap it all in a screen leaders use themselves — filter to a rep, tier, time window, and click from rep to account to contact. No database or code needed.
 
@@ -201,7 +203,7 @@ Built as full-rebuild, reads raw tables only, run manually (not yet on the daily
 
 **PM check:** you (or Falkner) use it start to finish without help, and it gives the right answer.
 
-**Depends on:** Phase 6.
+**Depends on:** Phase 5 (v1, as built — quality lens arrives with Phase 6).
 
 ---
 

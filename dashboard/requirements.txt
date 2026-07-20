@@ -1,0 +1,3 @@
+# Dashboard v1 (Phase 7). Streamlit pulls in pandas + altair itself.
+streamlit>=1.38
+psycopg2-binary>=2.9
