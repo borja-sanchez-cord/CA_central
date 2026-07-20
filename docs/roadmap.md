@@ -159,7 +159,9 @@ Built as full-rebuild, reads raw tables only, run manually (not yet on the daily
 
 ---
 
-## Phase 5 — Per-account & per-contact drill-down
+## Phase 5 — Per-account & per-contact drill-down  ✅ BUILT 2026-07-20
+
+**As built:** one additive migration (`migrations/003_account_drilldown.sql`) creating three parameterised functions + `_alltime` views: `rep_account_drilldown` (rep → accounts by name, with tier, touchpoints, people, channel mix), `account_contact_drilldown` (account → each person: title, touchpoints by channel), and `owned_account_coverage` (the **neglect view**: every CA-owned account *including zeros*, with BOTH owner-touches and whole-team touches). Read-only over `activity_flat` + dims; drop the six objects and Phases 0–4 are untouched. **v1 decisions (PM 2026-07-20):** meetings excluded from account views (no attendee data — title-parsing deferred); the ~60% no-company activity appears as an explicit '(no account matched)' row per rep so totals reconcile by construction. Validated: per-rep drill-down totals = scorecard total minus meetings, **exact for all 17 reps**; Callum's account rows match the hand-computed originals; Constantin's neglect rows match his coverage numbers (135/54/81). Render: `scorecard/build_drilldown.py` → 20-sheet workbook (team master + neglect with red-flagged untouched Tier 0/1 + contacts + 17 rep tabs), reconciled sheet-vs-view before delivery.
 
 **Plain terms:** Go deeper. For a rep, see each account and how hard it's worked — how many people, touchpoints, channels — so we can spot reps hammering a few accounts and ignoring the rest.
 
