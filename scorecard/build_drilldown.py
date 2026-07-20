@@ -116,6 +116,50 @@ def main():
     for col, w in zip("ABCDEFGHIJKLM", [26, 34, 9, 12, 11, 8, 10, 11, 8, 9, 9, 11, 11]):
         ws.column_dimensions[col].width = w
 
+    # -------------------------------------- 1b. owned-accounts-per-rep summary
+    ws = wb.create_sheet("Owned per rep")
+    title(ws, "Owned accounts per rep - coverage summary",
+          f"Window: {window}. Owned = accounts assigned to the rep in HubSpot (target-account owner); "
+          "a current snapshot, not window-dependent. Touched/coverage count activity in the window "
+          "(excl. meetings and the ~60% no-company activity, so coverage is a floor). "
+          "Sorted worst coverage first. Full account lists: 'Neglect - owned accounts'.")
+    heads = ["CA", "Accounts owned", "Owned & touched", "Untouched", "Coverage %",
+             "Tier 0/1 owned untouched"]
+    header_row(ws, 4, heads)
+    cur.execute("""
+        select owner_name,
+               count(*)                                         as owned,
+               count(*) filter (where owner_touches > 0)        as touched,
+               count(*) filter (where owner_touches = 0
+                                  and icp_tier in ('Tier 0','Tier 1')) as t01_untouched
+        from owned_account_coverage_alltime
+        group by owner_name
+        order by (count(*) filter (where owner_touches > 0))::float
+                 / nullif(count(*),0) asc nulls last, owner_name
+    """)
+    rows = cur.fetchall()
+    r = 5
+    for name, owned, touched, t01 in rows:
+        style(ws.cell(row=r, column=1, value=name), font=BODY_B, align="left")
+        style(ws.cell(row=r, column=2, value=int(owned)), fmt="#,##0")
+        style(ws.cell(row=r, column=3, value=int(touched)), fmt="#,##0")
+        style(ws.cell(row=r, column=4, value=f"=B{r}-C{r}"), fmt="#,##0")
+        style(ws.cell(row=r, column=5, value=f'=IF(B{r}=0,"n/a",C{r}/B{r})'), fmt="0.0%")
+        c = style(ws.cell(row=r, column=6, value=int(t01)), fmt="#,##0")
+        if t01:
+            c.fill = WARN_FILL
+        r += 1
+    style(ws.cell(row=r, column=1, value="All CAs"), font=BODY_B, fill=SUB_FILL, align="left")
+    for col in (2, 3, 4, 6):
+        L = chr(64 + col)
+        style(ws.cell(row=r, column=col, value=f"=SUM({L}5:{L}{r-1})"), font=BODY_B,
+              fmt="#,##0", fill=SUB_FILL)
+    style(ws.cell(row=r, column=5, value=f"=C{r}/B{r}"), font=BODY_B, fmt="0.0%", fill=SUB_FILL)
+    ws.freeze_panes = "B5"
+    for col, w in zip("ABCDEF", [26, 15, 16, 12, 12, 22]):
+        ws.column_dimensions[col].width = w
+    wb.move_sheet(ws, -(wb.index(ws)))   # make it the first tab
+
     # ------------------------------------------------- 2. neglect (owned)
     ws = wb.create_sheet("Neglect - owned accounts")
     title(ws, "Owned accounts incl. zeros - the neglect view",
