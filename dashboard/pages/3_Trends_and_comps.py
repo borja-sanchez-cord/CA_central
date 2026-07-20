@@ -18,10 +18,16 @@ MEASURES = ["total_counted", "emails", "auto_email", "manual_email", "dials",
             "pursuits", "conversations", "linkedin", "inbound_replies",
             "meetings_booked", "accounts_touched", "contacts_touched", "coverage_pct"]
 
+win = st.pills("Weeks", ["Last 4 weeks", "Last 12 weeks", "All weeks"],
+               default="All weeks", key="trend_weeks", label_visibility="collapsed")
 c1, c2 = st.columns([1, 2])
 measure = c1.selectbox("Measure", MEASURES,
                        format_func=lambda m: ui.MEASURE_LABELS.get(m, m))
 wk = ui.week_label(db.q(queries.WEEKLY_TREND))
+n_weeks = {"Last 4 weeks": 4, "Last 12 weeks": 12}.get(win)
+if n_weeks:
+    keep = sorted(wk.week_start.unique())[-n_weeks:]
+    wk = wk[wk.week_start.isin(keep)]
 reps = sorted(wk.ca_name.unique())
 sel = c2.multiselect("Who", [TEAM] + reps, default=[TEAM])
 if ui.DEFS.get(measure):
@@ -53,8 +59,7 @@ if frames:
     st.altair_chart(
         ui.trend_chart(d, measure, "who", order, who_domain, palette[:len(who_domain)], height=360),
         use_container_width=True)
-    st.caption("Full history, week by week — this tab has no time-window filter by design. "
-               "Latest week is partial until Sunday.")
+    st.caption("Whole weeks only (Mon-Sun) — the latest week is partial until Sunday.")
 
 with st.expander("Table — weeks × CAs"):
     pv = wk.pivot_table(index="ca_name", columns="week", values=measure)
