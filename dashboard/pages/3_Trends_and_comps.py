@@ -1,17 +1,18 @@
-"""Trends — week-by-week movement of any measure, per CA or whole team."""
+"""Trends and comps — week-by-week movement of any measure, per CA or whole team."""
 import altair as alt
+import pandas as pd
 import streamlit as st
 
 import db
 import queries
 import ui
 
-TEAM = "🌐 Whole team"
+TEAM = "Whole team"
 
 first, last = ui.setup(
-    "Trends",
-    "Week-by-week movement of any measure — watch whether coaching is changing behaviour.",
-    "📈")
+    "Trends and comps",
+    "Week-by-week movement of any measure, and CA-vs-CA comparison — watch whether "
+    "coaching is changing behaviour.")
 
 MEASURES = ["total_counted", "emails", "auto_email", "manual_email", "dials",
             "pursuits", "conversations", "linkedin", "inbound_replies",
@@ -43,28 +44,18 @@ for name in [s for s in sel if s != TEAM]:
     frames.append(one)
 
 if frames:
-    import pandas as pd
     d = pd.concat(frames, ignore_index=True)
     who_domain = [w for w in [TEAM] + reps if w in d.who.unique()]
-    palette = [ui.LIME] + ["#8A55F7", "#5B8DEF", "#E4574F", "#E8A33D", "#5E9C33",
-                           "#2F5FC4", "#A32C26", "#9DBEFF", "#C74841", "#8CC63F",
-                           "#B77CFF", "#4E9F8A", "#D96BC1", "#7A8699", "#E4C64F",
-                           "#6ACAE0", "#B3E249"]
-    st.altair_chart(ui.themed(
-        alt.Chart(d).mark_line(
-            strokeWidth=1.3, strokeOpacity=0.45,
-            point=alt.OverlayMarkDef(size=150, filled=True, opacity=1),
-        ).encode(
-            x=alt.X("week:O", sort=order, title=None, axis=alt.Axis(labelAngle=0)),
-            y=alt.Y("%s:Q" % measure, title=None),
-            color=alt.Color("who:N", title=None,
-                            scale=alt.Scale(domain=who_domain,
-                                            range=palette[:len(who_domain)])),
-            tooltip=["week", "who", measure],
-        ).properties(height=360)),
+    palette = [ui.LIME] + ["#B48EAD", "#7DA0CA", "#CC7A6F", "#E4C07A", "#6E8B3D",
+                           "#5E81AC", "#A65A50", "#A6C0E0", "#BF6A60", "#8FB04E",
+                           "#B77CFF", "#4E9F8A", "#D08BC0", "#8A93A5", "#D9C06B",
+                           "#6ACAE0", "#A7C957"]
+    st.altair_chart(
+        ui.trend_chart(d, measure, "who", order, who_domain, palette[:len(who_domain)], height=360),
         use_container_width=True)
-    st.caption("One dot per week of data — the dots are the data; lines just connect them. "
-               "The latest week is partial until Sunday. The lime line is the whole team.")
+    st.caption("One dot per week of data — the dots are the data; lines just connect them, "
+               "and each line is labelled at its latest point. The latest week is partial "
+               "until Sunday. The lime line is the whole team.")
 
 with st.expander("Table — weeks × CAs"):
     pv = wk.pivot_table(index="ca_name", columns="week", values=measure)

@@ -9,8 +9,7 @@ import ui
 
 first, last = ui.setup(
     "SAO vs activity",
-    "Each CA's monthly activity next to the meetings and SAOs they produced — context, not causation.",
-    "🎯")
+    "Each CA's monthly activity next to the meetings and SAOs they produced — context, not causation.")
 
 ms = db.q(queries.MONTHLY_SCORECARD)
 sao = db.q(queries.SAO_MONTHLY)
@@ -23,7 +22,7 @@ month = c1.selectbox("Month", months, index=len(months) - 1,
 mo_start = pd.Timestamp(month).date()
 mo_end = (pd.Timestamp(month) + pd.offsets.MonthEnd(0)).date()
 if mo_start <= first <= mo_end:
-    ui.pill("⚠️ <b>%s is partial</b> — activity covered only from %s"
+    ui.pill("<b>%s is partial</b> — activity covered only from %s"
             % (pd.Timestamp(month).strftime("%B %Y"), first), "red")
 ui.pill("Directional only: an SAO this month usually comes from <b>earlier</b> outreach. "
         "Correlation views unlock ~Oct 2026 (3+ full months)", "purple")
@@ -34,11 +33,15 @@ j = m_act.merge(m_sao, left_on="ca_name", right_on="rep_name", how="left")
 j["saos_outbound"] = j.saos - j.saos_inbound.fillna(0) - j.saos_event.fillna(0)
 j["attainment_pct"] = (j.saos / j.sao_target * 100).round(0)
 j["ramping"] = j.is_ramping.fillna(False)
-j["ca"] = j.ca_name + j.ramping.map(lambda x: "  Ⓡ" if x else "")
+j["ca"] = j.ca_name + j.ramping.map(lambda x: " *" if x else "")
 
 show = j[["ca", "total_counted", "emails", "dials", "conversations", "linkedin",
           "meetings_booked", "saos", "sao_target", "attainment_pct",
-          "saos_inbound", "saos_event", "saos_outbound", "pipeline_usd"]]
+          "saos_inbound", "saos_event", "saos_outbound", "pipeline_usd"]].copy()
+for c in ["total_counted", "emails", "dials", "conversations", "linkedin",
+          "meetings_booked", "saos", "sao_target", "saos_inbound", "saos_event",
+          "saos_outbound"]:
+    show[c] = show[c].round().astype("Int64")   # counts: no decimals
 ACT = "#8A55F7"   # activity family: purple tint
 OUT = "#B3E249"   # results family: lime tint
 FAMS = {"total_counted": ACT, "emails": ACT, "dials": ACT, "conversations": ACT,
@@ -47,13 +50,12 @@ FAMS = {"total_counted": ACT, "emails": ACT, "dials": ACT, "conversations": ACT,
         "saos_inbound": OUT, "saos_event": OUT, "saos_outbound": OUT,
         "pipeline_usd": OUT}
 styled = (show.sort_values("saos", ascending=False)
-              .style.apply(ui.family_tints(show.columns, FAMS), axis=None)
-              .format(precision=0, na_rep=""))
+              .style.apply(ui.family_tints(show.columns, FAMS), axis=None))
 st.dataframe(
     styled, hide_index=True, use_container_width=True,
     column_config={
         "ca": st.column_config.TextColumn("CA", pinned=True,
-                                          help="Ⓡ = ramping (reduced target)"),
+                                          help="* = ramping (reduced target)"),
         "total_counted": st.column_config.NumberColumn("Activities", help=ui.DEFS["total_counted"]),
         "emails": "Emails", "dials": "Dials", "conversations": "Convos",
         "linkedin": "LinkedIn",
@@ -67,8 +69,9 @@ st.dataframe(
                                                        help=ui.DEFS["saos_outbound"]),
         "pipeline_usd": st.column_config.NumberColumn("Pipeline $", format="$%d"),
     })
-st.caption("🟣 activity (our verified data) · 🟢 results (verbatim from Ray's tracker, joined by rep — "
-           "nothing recomputed). Ⓡ = ramping.")
+st.caption("Purple-tinted columns = activity (our verified data); lime-tinted = results "
+           "(verbatim from Ray's tracker, joined by rep — nothing recomputed). "
+           "* after a name = ramping (reduced target).")
 
 # --- effort vs results, side by side -------------------------------------------
 st.subheader("Meetings booked vs SAOs, per CA")
@@ -101,7 +104,7 @@ with c2:
             tooltip=["ca", "saos", "sao_target", "attainment_pct"],
         ).properties(height=26 * len(sort_order) + 60)),
         use_container_width=True)
-    st.caption("Lime = target hit. Ramping CAs (Ⓡ) carry reduced targets.")
+    st.caption("Lime = target hit. Ramping CAs (*) carry reduced targets.")
 
 with st.expander("One CA, month by month (incl. months before activity tracking)"):
     rep = st.selectbox("CA", sorted(sao[sao.rep_name.isin(ms.ca_name)].rep_name.unique()))

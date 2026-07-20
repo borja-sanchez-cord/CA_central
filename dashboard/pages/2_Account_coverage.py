@@ -9,8 +9,7 @@ import ui
 
 first, last = ui.setup(
     "Account coverage",
-    "Which accounts each CA is working — and which of the accounts they own are being left untouched.",
-    "🗺️")
+    "Which accounts each CA is working — and which of the accounts they own are being left untouched.")
 start, end, label = ui.window_pills(first, last)
 
 # --- CA × account heat map ------------------------------------------------------
@@ -35,17 +34,18 @@ st.caption("The team's 25 most-touched accounts — brighter = more touchpoints.
            "a dark row may deserve attention.")
 
 # --- owned-account coverage per CA ---------------------------------------------
-st.subheader("Owned accounts — is anyone home?")
+st.subheader("Owned accounts")
+st.caption("How much of what each CA owns are they actually working? "
+           "“Owns” = accounts where they are the HubSpot target-account owner; "
+           "“They touched” = how many of those they personally worked in this window; "
+           "coverage is the ratio.")
 cov = db.q(queries.OWNED_COVERAGE, (start, end))
 t01 = cov[(cov.icp_tier.isin(["Tier 0", "Tier 1"])) & (cov.team_touches == 0)]
 
 per_rep = cov.groupby("owner_name").agg(
     owned=("account_name", "count"),
     owner_touched=("owner_touches", lambda s: int((s > 0).sum())),
-    team_touched=("team_touches", lambda s: int((s > 0).sum())),
 ).reset_index()
-per_rep["neglected_t01"] = per_rep.owner_name.map(
-    t01.groupby("owner_name").size()).fillna(0).astype(int)
 per_rep["coverage_pct"] = (per_rep.owner_touched / per_rep.owned * 100).round(0)
 per_rep = per_rep.sort_values("coverage_pct")
 
@@ -56,40 +56,37 @@ st.dataframe(
         "owned": st.column_config.NumberColumn("Owns", help=ui.DEFS["accounts_owned"]),
         "owner_touched": st.column_config.NumberColumn(
             "They touched", help=ui.DEFS["owned_touched"]),
-        "team_touched": st.column_config.NumberColumn(
-            "Anyone touched", help="Owned accounts touched by ANY CA in the window."),
-        "neglected_t01": st.column_config.NumberColumn(
-            "🚩 Top-tier untouched",
-            help="Owned Tier 0/1 accounts nobody on the team touched in this window."),
-        "coverage_pct": st.column_config.ProgressColumn(
-            "Coverage", format="%.0f%%", min_value=0, max_value=100,
-            help=ui.DEFS["coverage_pct"]),
+        "coverage_pct": st.column_config.NumberColumn(
+            "Coverage", format="%d%%", help=ui.DEFS["coverage_pct"]),
     })
 
-# --- neglected top-tier accounts, grouped by CA ----------------------------------
+# --- neglected top-tier accounts as floating bubbles ----------------------------
 st.subheader("Neglected top-tier accounts")
-ui.pill("<b>%d</b> owned Tier 0/1 accounts with zero touches from anyone in this window"
+ui.pill("<b>%d</b> owned top-tier accounts with zero touches from anyone in this window"
         % len(t01), "red")
-st.caption("Touch counts are a floor (the missing-company gap can hide touches, "
-           "never invent them) — zero means no *recorded* touch.")
+st.caption("Top tier = HubSpot Tier 0 and Tier 1 — leadership's own best-fit designation, "
+           "the one place we deliberately lean on tier because it marks the accounts that "
+           "matter most. Each bubble below is one such account nobody on the team touched, "
+           "clustered under its owning CA (bigger bubble = Tier 0). Touch counts are a floor: "
+           "zero means no recorded touch.")
 if len(t01):
-    counts = t01.groupby("owner_name").size().sort_values(ascending=False)
-    pick_col, list_col = st.columns([1.1, 2])
-    with pick_col:
-        st.altair_chart(ui.themed(
-            alt.Chart(counts.reset_index(name="n")).mark_bar(color=ui.PURPLE).encode(
-                x=alt.X("n:Q", title="Neglected top-tier accounts"),
-                y=alt.Y("owner_name:N", sort="-x", title=None),
-                tooltip=["owner_name", "n"],
-            ).properties(height=24 * len(counts))),
-            use_container_width=True)
-    with list_col:
-        who = st.selectbox("Whose accounts to list", counts.index.tolist())
-        st.dataframe(
-            t01[t01.owner_name == who][["account_name", "icp_tier", "vertical"]],
-            hide_index=True, use_container_width=True,
-            column_config={"account_name": "Account", "icp_tier": "Tier",
-                           "vertical": "Vertical"})
+    neg = t01.copy()
+    neg["bubble"] = neg.icp_tier.map({"Tier 0": 3, "Tier 1": 1})
+    neg["rank"] = neg.groupby("owner_name").cumcount()
+    owners = neg.groupby("owner_name").size().sort_values(ascending=False).index.tolist()
+    st.altair_chart(ui.themed(
+        alt.Chart(neg).mark_circle(opacity=0.75, stroke="#161A21", strokeWidth=1).encode(
+            x=alt.X("owner_name:N", sort=owners, title=None, axis=alt.Axis(labelAngle=-40)),
+            y=alt.Y("rank:Q", axis=None, title=None),
+            size=alt.Size("bubble:Q", legend=None, scale=alt.Scale(range=[90, 430])),
+            color=alt.Color("owner_name:N", legend=None,
+                            scale=alt.Scale(scheme="set2")),
+            tooltip=[alt.Tooltip("account_name:N", title="Account"),
+                     alt.Tooltip("owner_name:N", title="Owner"),
+                     alt.Tooltip("icp_tier:N", title="Tier")],
+        ).properties(height=max(240, 30 * neg.groupby("owner_name").size().max()))),
+        use_container_width=True)
+    st.caption("Hover a bubble for the account name and tier.")
 else:
     st.success("None in this window.")
 

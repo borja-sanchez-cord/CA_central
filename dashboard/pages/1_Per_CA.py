@@ -9,8 +9,7 @@ import ui
 
 first, last = ui.setup(
     "Per CA",
-    "One CA's activity: what they did, how it's trending, and which accounts it went into.",
-    "🧑‍💼")
+    "One CA's activity: what they did, how it's trending, and which accounts it went into.")
 
 reps = db.q(queries.REPS)["name"].tolist()
 c1, _ = st.columns([1.4, 2])
@@ -29,20 +28,20 @@ ui.kpi_row([
     {"label": "Activities", "value": int(r.total_counted),
      "help": ui.DEFS["total_counted"]},
     {"label": "Emails", "value": int(r.emails),
-     "sub": "%d auto · %d manual" % (r.auto_email, r.manual_email),
+     "sub": "%d auto / %d manual" % (r.auto_email, r.manual_email),
      "help": ui.DEFS["emails"]},
     {"label": "Dials", "value": int(r.dials),
-     "sub": "%d conversations · %d pursuits" % (r.conversations, r.pursuits),
+     "sub": "%d convos / %d pursuits" % (r.conversations, r.pursuits),
      "help": ui.DEFS["conversations"]},
     {"label": "LinkedIn", "value": int(r.linkedin),
-     "sub": "%d connect · %d message · %d other" % (r.li_connect, r.li_message, r.li_other),
+     "sub": "%d con / %d msg / %d other" % (r.li_connect, r.li_message, r.li_other),
      "help": ui.DEFS["linkedin"]},
-    {"label": "Meetings booked", "value": int(r.meetings_booked),
-     "sub": "%d held · %d canceled · %d sched · %d unknown" % (
+    {"label": "Meetings", "value": int(r.meetings_booked),
+     "sub": "%d held / %d canc / %d sch / %d unk" % (
          r.meetings_held, r.meetings_canceled, r.meetings_scheduled, r.meetings_unknown),
      "help": ui.DEFS["meetings_booked"]},
     {"label": "Coverage", "value": "%.0f%%" % cov_pct,
-     "sub": "%d of %d owned accounts touched" % (r.owned_touched, r.accounts_owned),
+     "sub": "%d of %d owned touched" % (r.owned_touched, r.accounts_owned),
      "help": ui.DEFS["coverage_pct"]},
 ])
 st.write("")
@@ -56,21 +55,13 @@ tl = wk[["week", "week_start"] + trend_cols].melt(
     ["week", "week_start"], var_name="m", value_name="count")
 tl["measure"] = tl.m.map(ui.MEASURE_LABELS)
 order = [w for w in wk.sort_values("week_start").week.unique()]
-st.altair_chart(ui.themed(
-    alt.Chart(tl).mark_line(
-        strokeWidth=1.3, strokeOpacity=0.45,
-        point=alt.OverlayMarkDef(size=130, filled=True, opacity=1),
-    ).encode(
-        x=alt.X("week:O", sort=order, title=None, axis=alt.Axis(labelAngle=0)),
-        y=alt.Y("count:Q", title=None),
-        color=alt.Color("measure:N", title=None,
-                        scale=alt.Scale(domain=[ui.MEASURE_LABELS[c] for c in trend_cols],
-                                        range=[ui.MEASURE_COLORS[c] for c in trend_cols])),
-        tooltip=["week", "measure", "count"],
-    ).properties(height=280)),
+st.altair_chart(
+    ui.trend_chart(tl, "count", "measure", order,
+                   [ui.MEASURE_LABELS[c] for c in trend_cols],
+                   [ui.MEASURE_COLORS[c] for c in trend_cols], height=280),
     use_container_width=True)
 st.caption("One dot per week of data — the dots are the data; lines just connect them. "
-           "The latest week is partial until Sunday.")
+           "Each line is labelled at its latest point. The latest week is partial until Sunday.")
 
 # --- account breakdown --------------------------------------------------------
 st.subheader("Which accounts the touchpoints went into")
@@ -90,8 +81,8 @@ if len(no_acc):
 ch_cols = ["auto_email", "manual_email", "calls", "linkedin", "inbound_replies"]
 CH_LBL = {"auto_email": "Automated emails", "manual_email": "Manual emails",
           "calls": "Dials", "linkedin": "LinkedIn", "inbound_replies": "Inbound replies"}
-CH_COL = {"auto_email": "#B3E249", "manual_email": "#5E9C33", "calls": "#E4574F",
-          "linkedin": "#5B8DEF", "inbound_replies": "#E8A33D"}
+CH_COL = {"auto_email": "#A7C957", "manual_email": "#6E8B3D", "calls": "#CC7A6F",
+          "linkedin": "#7DA0CA", "inbound_replies": "#E4C07A"}
 top = acc_v.head(15)
 stk = top[["account_name"] + ch_cols].melt("account_name", var_name="m", value_name="count")
 stk["channel"] = stk.m.map(CH_LBL)

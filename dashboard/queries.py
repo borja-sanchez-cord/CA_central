@@ -91,6 +91,15 @@ LAST_RUN = """
     select max(finished_at) as finished_at
     from ingestion_runs where status = 'ok'
 """
+# the daily GitHub Action is the only thing that syncs the entity mirrors
+# (companies/contacts/owners/users); one-off activity backfills don't — so this
+# isolates the real scheduled run time from manual backfills.
+LAST_DAILY_RUN = """
+    select max(finished_at) as finished_at
+    from ingestion_runs
+    where status = 'ok'
+      and object_type in ('companies', 'contacts', 'owners', 'users')
+"""
 RUN_ACTIVE = """
     select min(started_at) as started_at
     from ingestion_runs

@@ -10,8 +10,7 @@ import ui
 first, last = ui.setup(
     "Raw data",
     "The live, read-only view of the activity database — one row per real activity. "
-    "Every number on every other tab can be traced to rows here.",
-    "🔍")
+    "Every number on every other tab can be traced to rows here.")
 start, end, label = ui.window_pills(first, last)
 
 reps = ["(all)"] + db.q(queries.REPS)["name"].tolist()
@@ -27,17 +26,18 @@ counted = c3.radio("Rows", ["counted", "excluded", "all"], horizontal=True,
                                 "all": "Everything"}.get)
 search = c4.text_input("Subject / account contains")
 
+_COUNTED_HELP = (
+    "Nothing is ever deleted — every raw tool record lands in exactly one row here. "
+    "Counted in reports = real CA activity (the rows every other tab adds up). "
+    "Excluded (kept for audit) = rows that would double-count or aren't CA outreach "
+    "(duplicate to-do shadows, bounces, calendar invites, non-CA senders), kept "
+    "visible with the exact reason so any number can be audited.")
 tot = db.q(queries.AUDIT_COUNT, (start, end, rep, rep, channel, channel)).iloc[0]
-ui.pill("<b>%d</b> counted in reports" % tot.counted, "lime")
-ui.pill("<b>%d</b> excluded — kept with the reason why" % tot.excluded, "purple")
-with st.popover("What do counted / excluded mean?"):
-    st.markdown(
-        "Nothing is ever deleted. Every raw record from the tools lands in exactly "
-        "one row here.\n\n- **Counted in reports** — real CA activity; these are the "
-        "rows every other tab adds up.\n- **Excluded (kept for audit)** — rows that "
-        "would double-count or aren't CA outreach (duplicate to-do 'shadows', "
-        "bounces, calendar invites, non-CA senders…), kept visible with the exact "
-        "reason so any number can be audited.")
+st.markdown(
+    '<span class="pill lime"><b>%d</b> counted in reports</span>'
+    '<span class="pill purple"><b>%d</b> excluded — kept for audit</span>'
+    % (tot.counted, tot.excluded), unsafe_allow_html=True)
+st.caption("What do counted / excluded mean?", help=_COUNTED_HELP)
 
 like = "%%%s%%" % search if search else ""
 rows = db.q(queries.AUDIT_ROWS,
@@ -63,7 +63,7 @@ if len(rows) == 500:
 # --- click a row -> full detail ------------------------------------------------
 sel = event.selection.rows if event and event.selection else []
 if not sel:
-    ui.pill("👆 Click any row above to inspect it — full detail, incl. the email body, appears here")
+    ui.pill("Click any row above to inspect it — full detail, incl. the email body, appears here")
     st.stop()
 
 detail = db.q(queries.AUDIT_DETAIL, (rows.iloc[sel[0]]["activity_id"],)).iloc[0]
