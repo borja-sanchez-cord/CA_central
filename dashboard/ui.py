@@ -181,8 +181,16 @@ def data_range():
 
 
 def window_pills(first, last, key="win"):
+    """7/30-day rolling windows, calendar months (Ray's SAO clock), all, custom."""
+    months = []          # newest first: (label, month_start)
+    m = last.replace(day=1)
+    while m >= first.replace(day=1):
+        months.append((m.strftime("%b %Y"), m))
+        m = (m - dt.timedelta(days=1)).replace(day=1)
+    month_lbls = [lbl for lbl, _ in months]
+
     choice = st.pills("Time window",
-                      ["Last 7 days", "Last 30 days", "All time", "Custom"],
+                      ["Last 7 days", "Last 30 days"] + month_lbls + ["All time", "Custom"],
                       default="Last 7 days", key=key, label_visibility="collapsed")
     choice = choice or "Last 7 days"
     if choice == "Last 7 days":
@@ -191,6 +199,13 @@ def window_pills(first, last, key="win"):
         return max(last - dt.timedelta(days=29), first), last, choice
     if choice == "All time":
         return first, last, choice
+    for lbl, ms in months:
+        if choice == lbl:
+            me = (ms + dt.timedelta(days=32)).replace(day=1) - dt.timedelta(days=1)
+            start, end = max(ms, first), min(me, last)
+            if ms < first:      # month truncated by history start (July: from Jul 6)
+                st.caption("%s is partial in our data — covered from %s." % (lbl, first))
+            return start, end, lbl
     c1, c2, _ = st.columns([1, 1, 3])
     start = c1.date_input("From", first, min_value=first, max_value=last, key=key + "_a")
     end = c2.date_input("To", last, min_value=first, max_value=last, key=key + "_b")
