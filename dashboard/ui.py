@@ -136,6 +136,11 @@ def setup(title, explainer):
 
     import os
     pw = os.environ.get("DASHBOARD_PASSWORD")
+    if not pw:                       # Streamlit Cloud exposes secrets via st.secrets
+        try:
+            pw = st.secrets["DASHBOARD_PASSWORD"]
+        except Exception:
+            pw = None
     if pw and not st.session_state.get("_authed"):
         st.title("CA Activity Dashboard")
         if st.text_input("Password", type="password") == pw:
