@@ -52,6 +52,7 @@ sys.path.insert(0, _HERE)
 from ingest import load_env, require, _extract_emails
 from resolve import rebuild  # the shared delete+insert-no-commit rebuild helper
 import rules
+import vocab  # the controlled label vocabulary (channels / excluded_reasons)
 
 COLUMNS = ["activity_id", "source", "channel", "direction", "ca_id", "ca_ids",
            "contact_id", "company_id", "contact_email", "occurred_at",
@@ -257,6 +258,24 @@ def verify_invariant(conn, rows):
                  "— the build would miscount; nothing was committed.")
 
 
+def verify_vocab(rows):
+    """Every emitted channel / excluded_reason must be a declared label
+    (model/vocab.py). Catches a typo or a new, undeclared category before it
+    ships and silently drops out of the scorecard counts (which filter on
+    these exact strings). Column positions are looked up from COLUMNS, so this
+    keeps working if the column order ever changes."""
+    ci = COLUMNS.index("channel")
+    ri = COLUMNS.index("excluded_reason")
+    bad_ch = sorted({r[ci] for r in rows if r[ci] not in vocab.CHANNELS})
+    bad_rs = sorted({r[ri] for r in rows
+                     if r[ri] is not None and r[ri] not in vocab.EXCLUDED_REASONS})
+    if bad_ch or bad_rs:
+        sys.exit(f"FATAL: undeclared labels — channels={bad_ch} reasons={bad_rs}. "
+                 "If intentional, add them to model/vocab.py; nothing was committed.")
+    print(f"  vocab: {len(vocab.CHANNELS)} channels / {len(vocab.EXCLUDED_REASONS)} "
+          "reasons declared — all emitted values recognised OK")
+
+
 def main():
     load_env()
     conn = psycopg2.connect(require("SUPABASE_DB_URL"), connect_timeout=20)
@@ -269,6 +288,7 @@ def main():
             + build_tasks(conn, ample_user_ca, ample_contact, contact_by_email))
 
     verify_invariant(conn, rows)  # before any write: a bad build never lands
+    verify_vocab(rows)            # and every label must be a declared one
 
     rebuild(conn, "activity", COLUMNS, [tuple(r) for r in rows])
     conn.commit()  # the single data commit — all-or-nothing snapshot swap
