@@ -31,6 +31,31 @@ st.altair_chart(ui.themed(
     use_container_width=True)
 st.caption("Top 25 most-touched accounts. Brighter = more touchpoints.")
 
+# --- accounts by touchpoint volume (distribution per CA) ------------------------
+st.subheader("Accounts by touchpoint volume")
+BUCKETS = [("1-9", 1, 9), ("10-24", 10, 24), ("25-49", 25, 49),
+           ("50-99", 50, 99), ("100+", 100, 10**9)]
+dv = db.q(queries.REP_ACCOUNTS_ALL, (start, end))
+dv = dv[dv.account_name != "(no account matched)"].copy()
+dv["bucket"] = pd.cut(dv.touchpoints,
+                      bins=[0, 9, 24, 49, 99, 10**9],
+                      labels=[b[0] for b in BUCKETS])
+dist = dv.groupby(["ca_name", "bucket"], observed=True).size().reset_index(name="accounts")
+order_ca = dv.groupby("ca_name").size().sort_values(ascending=False).index.tolist()
+st.altair_chart(ui.themed(
+    alt.Chart(dist).mark_bar().encode(
+        x=alt.X("accounts:Q", title="Accounts"),
+        y=alt.Y("ca_name:N", sort=order_ca, title=None),
+        color=alt.Color("bucket:N", title="Touchpoints",
+                        scale=alt.Scale(domain=[b[0] for b in BUCKETS],
+                                        range=["#4A415F", "#5C4A8F", "#6E52C4",
+                                               "#8A55F7", "#B3E249"])),
+        tooltip=["ca_name", "bucket", "accounts"],
+    ).properties(height=26 * max(1, len(order_ca)))),
+    use_container_width=True)
+st.caption("Depth vs spread: many accounts at 1-9 touchpoints = wide and shallow; "
+           "100+ on one account = concentrated bets.")
+
 # --- owned-account coverage per CA ---------------------------------------------
 st.subheader("Owned accounts")
 st.caption("How much of what each CA owns are they actually working?")
@@ -59,7 +84,7 @@ st.dataframe(
 # --- neglected top-tier accounts -------------------------------------------------
 st.subheader("Neglected top-tier accounts")
 ui.pill("<b>%d</b> owned top-tier accounts, zero recorded touches by anyone" % len(t01), "red")
-st.caption("Top tier = HubSpot Tier 0/1.")
+st.caption("Top tier = HubSpot Tier 0/1 — the validated tier field, never the automated one.")
 if len(t01):
     counts = (t01.groupby(["owner_name", "icp_tier"]).size()
                  .reset_index(name="n"))
@@ -83,7 +108,8 @@ if len(t01):
             t01[t01.owner_name == who][["account_name", "icp_tier"]]
                 .sort_values(["icp_tier", "account_name"]),
             hide_index=True, use_container_width=True,
-            column_config={"account_name": "Account", "icp_tier": "Tier"})
+            column_config={"account_name": "Account",
+                           "icp_tier": st.column_config.TextColumn("Tier (validated)")})
 else:
     st.success("None in this window.")
 

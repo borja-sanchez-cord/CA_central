@@ -22,6 +22,8 @@ if row.empty:
     st.info("No data for %s in this window." % rep)
     st.stop()
 r = row.iloc[0]
+rh = db.q(queries.MEETINGS_RH, (start, end))
+rh_rep = int(rh[rh.ca_name == rep].rh.sum()) if len(rh) else 0
 
 cov_pct = 0 if pd.isna(r.coverage_pct) else r.coverage_pct
 ui.kpi_row([
@@ -37,9 +39,11 @@ ui.kpi_row([
      "sub": "%d con / %d msg / %d other" % (r.li_connect, r.li_message, r.li_other),
      "help": ui.DEFS["linkedin"]},
     {"label": "Meetings", "value": int(r.meetings_booked),
-     "sub": "%d held / %d canc / %d sch / %d unk" % (
-         r.meetings_held, r.meetings_canceled, r.meetings_scheduled, r.meetings_unknown),
-     "help": ui.DEFS["meetings_booked"]},
+     "sub": "%d held / %d canc / %d sch / %d unk | %d via RevHero" % (
+         r.meetings_held, r.meetings_canceled, r.meetings_scheduled,
+         r.meetings_unknown, rh_rep),
+     "help": ui.DEFS["meetings_booked"] + " 'Via RevHero' = auto-booked by the Revenue "
+             "Hero inbound scheduler — still counted today."},
     {"label": "Coverage", "value": "%.0f%%" % cov_pct,
      "sub": "%d of %d owned touched" % (r.owned_touched, r.accounts_owned),
      "help": ui.DEFS["coverage_pct"]},
@@ -110,7 +114,9 @@ if len(acc_v):
             "pct_of_touchpoints": st.column_config.NumberColumn("% of total", format="%.1f%%"),
             "people_touched": st.column_config.NumberColumn("People"),
             "owned_by_this_rep": st.column_config.CheckboxColumn("Owned by this CA"),
-            "icp_tier": st.column_config.TextColumn("Tier"),
+            "icp_tier": st.column_config.TextColumn(
+                "Tier (validated)",
+                help="HubSpot's validated tier field — never the automated one."),
             "last_touch": st.column_config.DateColumn("Last touch"),
         })
 

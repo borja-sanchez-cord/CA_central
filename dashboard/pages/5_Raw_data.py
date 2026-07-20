@@ -45,6 +45,8 @@ rows = db.q(queries.AUDIT_ROWS,
              counted, counted, counted, search, like, like))
 
 disp = rows.drop(columns=["activity_id"]).copy()
+# meetings carry a default direction stamp that means nothing — show n/a
+disp.loc[disp.channel == "meeting", "direction"] = "n/a"
 disp["channel"] = disp["channel"].map(lambda c: ui.CHANNEL_LABELS.get(c, c))
 # what a sales leader scans for first, left to right; plumbing last
 disp = disp[["activity_date", "ca_name", "channel", "account_name", "subject",
@@ -85,7 +87,10 @@ with left:
     for f in ["occurred_at", "activity_date", "ca_name", "ca_email", "channel",
               "direction", "is_automated", "automated_confidence", "counts",
               "excluded_reason", "source", "logged_by", "dup_count"]:
-        st.write("**%s:** %s" % (f, detail[f]))
+        val = detail[f]
+        if f == "direction" and detail["channel"] == "meeting":
+            val = "n/a (meetings aren't classified inbound/outbound)"
+        st.write("**%s:** %s" % (f, val))
 with right:
     for f in ["subject", "account_name", "account_domain", "account_icp_tier_validated",
               "contact_email", "contact_firstname", "contact_lastname",

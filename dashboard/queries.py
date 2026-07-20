@@ -86,6 +86,17 @@ AUDIT_DETAIL = """
 CHANNELS = "select distinct channel from activity_flat order by 1"
 REPS = "select name from dim_ca order by 1"
 
+# meetings auto-booked by the Revenue Hero scheduler (visible split — still
+# counted; excluding them is a definition change pending leadership sign-off)
+MEETINGS_RH = """
+    select ca_name, count(*) as rh
+    from activity_flat
+    where counts and channel = 'meeting'
+      and 'RevenueHero' = any(logged_by)
+      and activity_date between %s and %s
+    group by ca_name
+"""
+
 # run-status indicators (metadata only; grant in migration 005)
 LAST_RUN = """
     select max(finished_at) as finished_at

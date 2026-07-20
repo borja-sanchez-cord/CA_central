@@ -13,6 +13,8 @@ start, end, label = ui.window_pills(first, last)
 
 sc = db.q(queries.SCORECARD, (start, end))
 n = len(sc)
+rh = db.q(queries.MEETINGS_RH, (start, end))
+rh_total = int(rh.rh.sum()) if len(rh) else 0
 
 ui.kpi_row([
     {"label": "Activities", "value": int(sc.total_counted.sum()), "help": ui.DEFS["total_counted"]},
@@ -25,9 +27,11 @@ ui.kpi_row([
     {"label": "Inbound", "value": int(sc.inbound_replies.sum()),
      "help": ui.DEFS["inbound_replies"]},
     {"label": "Meetings", "value": int(sc.meetings_booked.sum()),
-     "sub": "%d held / %d canc / %d unk" % (
-         sc.meetings_held.sum(), sc.meetings_canceled.sum(), sc.meetings_unknown.sum()),
-     "help": ui.DEFS["meetings_booked"]},
+     "sub": "%d held / %d canc / %d unk | %d via Revenue Hero" % (
+         sc.meetings_held.sum(), sc.meetings_canceled.sum(),
+         sc.meetings_unknown.sum(), rh_total),
+     "help": ui.DEFS["meetings_booked"] + " 'Via Revenue Hero' = auto-booked by the "
+             "inbound scheduler — still counted today."},
     {"label": "Other", "value": int(sc.other_outreach.sum()), "help": ui.DEFS["other"]},
 ])
 st.write("")

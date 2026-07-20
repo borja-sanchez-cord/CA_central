@@ -53,7 +53,8 @@ if frames:
     st.altair_chart(
         ui.trend_chart(d, measure, "who", order, who_domain, palette[:len(who_domain)], height=360),
         use_container_width=True)
-    st.caption("Latest week is partial until Sunday.")
+    st.caption("Full history, week by week — this tab has no time-window filter by design. "
+               "Latest week is partial until Sunday.")
 
 with st.expander("Table — weeks × CAs"):
     pv = wk.pivot_table(index="ca_name", columns="week", values=measure)

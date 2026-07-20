@@ -24,6 +24,8 @@ mo_end = (pd.Timestamp(month) + pd.offsets.MonthEnd(0)).date()
 if mo_start <= first <= mo_end:
     ui.pill("<b>%s is partial</b> — activity covered only from %s"
             % (pd.Timestamp(month).strftime("%B %Y"), first), "red")
+ui.pill("This tab is <b>per calendar month</b> — SAOs come from Ray's tracker, logged "
+        "monthly. No 7/30-day windows here")
 ui.pill("Directional only: an SAO this month usually comes from <b>earlier</b> outreach. "
         "Correlation views unlock ~Oct 2026 (3+ full months)", "purple")
 
