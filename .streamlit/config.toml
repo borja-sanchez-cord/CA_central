@@ -1,0 +1,11 @@
+# Dashboard theme — dark mode with Encord accents (PM design direction 2026-07-20).
+# Purple rgb(98,35,233) = selected/interactive; lime rgb(179,226,73) via ui.py accents.
+[theme]
+base = "dark"
+primaryColor = "#6223E9"
+backgroundColor = "#101217"
+secondaryBackgroundColor = "#191C23"
+textColor = "#E9EAEE"
+
+[browser]
+gatherUsageStats = false

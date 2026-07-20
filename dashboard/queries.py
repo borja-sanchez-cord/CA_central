@@ -85,3 +85,16 @@ AUDIT_DETAIL = """
 
 CHANNELS = "select distinct channel from activity_flat order by 1"
 REPS = "select name from dim_ca order by 1"
+
+# run-status indicators (metadata only; grant in migration 005)
+LAST_RUN = """
+    select max(finished_at) as finished_at
+    from ingestion_runs where status = 'ok'
+"""
+RUN_ACTIVE = """
+    select min(started_at) as started_at
+    from ingestion_runs
+    where finished_at is null
+      and started_at > now() - interval '2 hours'
+    having count(*) > 0
+"""

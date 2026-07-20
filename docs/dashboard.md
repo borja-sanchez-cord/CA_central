@@ -97,14 +97,14 @@ login. Exposing a new object to the dashboard is a deliberate act (an explicit
 
 ## Running it
 
-- `python3 -m streamlit run dashboard/app.py` (deps: `dashboard/requirements.txt`).
+- `python3 -m streamlit run dashboard/Team_overview.py` (deps: `dashboard/requirements.txt`).
 - Data freshness: through *yesterday*, via the 06:17 UTC daily run — the
   dashboard itself fetches live from the views on every load.
 - SAO refresh: re-run the loader whenever Ray's sheet changes (monthly).
 
 ## Engineer appendix
 
-- `dashboard/` — Streamlit app: `app.py` (team overview) + `pages/` (one file
+- `dashboard/` — Streamlit app: `Team_overview.py` (landing) + `pages/` (one file
   per screen), `db.py` (connection via `DASHBOARD_DB_URL`, read-only role),
   `queries.py` (every SQL statement in one place — nothing outside the
   approved surfaces), `requirements.txt`.
