@@ -43,6 +43,28 @@ Always: dials ≥ pursuits ≥ conversations. (~8–9 dials per conversation is 
 | **Target account** | The account has a target-account owner assigned in HubSpot. | |
 | **Date** | The UTC day the activity happened (not when it synced). | UK afternoon and US morning share a UTC day, but US evening calls can land on the "next" UTC day. |
 
+## Scorecard measures (the per-rep rollup — Phase 4)
+
+These are computed *per rep, per time window* by the `rep_scorecard()` view in
+Supabase; the dashboard reads them directly. Everything above is a raw count of
+activities; these are the derived numbers built on top.
+
+| Measure | Definition | Watch out |
+|---|---|---|
+| **Emails** | Automated + manual emails added together. | |
+| **Meetings booked** | Every meeting in the window (see Meeting above). | The headline meeting number — always shown split into the four below, never alone. |
+| **Meetings held** | Meetings the rep marked `COMPLETED`. | Only ~20% of meetings get any outcome logged, so this *undercounts* real held meetings — it's a floor, not the truth. |
+| **Meetings canceled** | Meetings marked `CANCELED`. | |
+| **Meetings scheduled** | Upcoming, marked `SCHEDULED`/`RESCHEDULED`. | |
+| **Meetings unknown** | Booked minus held minus canceled minus scheduled — i.e. no outcome was logged. | This is usually the biggest bucket. "Unknown" means *not logged*, **never** assume held. Any new outcome value HubSpot invents also lands here, not in held. |
+| **Total counted** | Every counted activity for the rep, each counted once. | |
+| **Accounts touched** | Distinct companies the rep did at least one counted activity against, in the window. | Skips the ~60% of activities with no matched company (LinkedIn/calls/meetings) — understates true breadth. Trend over level. |
+| **Contacts touched** | Distinct people the rep did at least one counted activity against. | Same ~60% caveat. |
+| **Contacts per account** | Contacts touched ÷ accounts touched. | A depth signal (are they multi-threading?), blunted by the same missing-company gap. |
+| **Accounts owned** | Companies where this rep is the HubSpot target-account owner. | One owner per account; ~1,600 accounts are owned in total. Untiered/unassigned accounts a rep works but doesn't formally own are not in this denominator. |
+| **Owned touched** | Of the rep's *owned* accounts, how many they personally touched in the window. | A colleague touching your account does **not** count here. |
+| **Coverage %** | Owned touched ÷ accounts owned. "Of the accounts I'm responsible for, what share did I work this period." | Likely a slight *under*-count (missing-company gap can only hide touches, never invent them). Compare reps to each other, watch the trend. |
+
 ## Appendix — audit fields (for trust, not for reading)
 
 Every row also carries its full audit trail: the raw tool records behind it
@@ -53,7 +75,9 @@ bounce/auto-reply noise, calendar invite, internal-only recipients, …). Nothin
 is deleted; every raw record lands in exactly one row, and the build aborts if
 that ever breaks.
 
-*Sources: `model/rules.py` + `model/build_activity.py` (all rules),
-`migrations/001_activity_model.sql` (fields), `docs/decisions.md` (evidence for
-each caveat). Built from `activity_flat` — the one view every report reads, so
-these definitions cannot drift between reports.*
+*Sources: `model/rules.py` + `model/build_activity.py` (activity rules),
+`migrations/001_activity_model.sql` (activity fields), `migrations/002_rep_scorecard.sql`
+(scorecard measures), `docs/decisions.md` (evidence for each caveat). Activity
+counts come from `activity_flat` and scorecard measures from `rep_scorecard()` —
+the same views every report and the dashboard read, so these definitions cannot
+drift between reports.*
