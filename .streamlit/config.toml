@@ -1,10 +1,10 @@
-# Dashboard theme — dark mode (a touch lighter), monospace, Encord accents.
+# Dashboard theme — dark mode (softened contrast), monospace, Encord accents.
 # Purple rgb(98,35,233) = interactive/selected; lime rgb(179,226,73) via ui.py.
 [theme]
 base = "dark"
 primaryColor = "#6223E9"
-backgroundColor = "#161A21"
-secondaryBackgroundColor = "#20242E"
+backgroundColor = "#1D222C"
+secondaryBackgroundColor = "#272D39"
 textColor = "#E9EAEE"
 font = "monospace"
 

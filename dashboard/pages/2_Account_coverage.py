@@ -29,16 +29,11 @@ st.altair_chart(ui.themed(
         tooltip=["ca_name", "account_name", "touchpoints"],
     ).properties(height=560)),
     use_container_width=True)
-st.caption("The team's 25 most-touched accounts — brighter = more touchpoints. "
-           "A bright row worked by several CAs may deserve coordination; "
-           "a dark row may deserve attention.")
+st.caption("Top 25 most-touched accounts. Brighter = more touchpoints.")
 
 # --- owned-account coverage per CA ---------------------------------------------
 st.subheader("Owned accounts")
-st.caption("How much of what each CA owns are they actually working? "
-           "“Owns” = accounts where they are the HubSpot target-account owner; "
-           "“They touched” = how many of those they personally worked in this window; "
-           "coverage is the ratio.")
+st.caption("How much of what each CA owns are they actually working?")
 cov = db.q(queries.OWNED_COVERAGE, (start, end))
 t01 = cov[(cov.icp_tier.isin(["Tier 0", "Tier 1"])) & (cov.team_touches == 0)]
 
@@ -53,40 +48,42 @@ st.dataframe(
     per_rep, hide_index=True, use_container_width=True,
     column_config={
         "owner_name": st.column_config.TextColumn("Owner (CA)", pinned=True),
-        "owned": st.column_config.NumberColumn("Owns", help=ui.DEFS["accounts_owned"]),
+        "owned": st.column_config.NumberColumn(
+            "Owns", help="Accounts where this CA is the HubSpot target-account owner."),
         "owner_touched": st.column_config.NumberColumn(
-            "They touched", help=ui.DEFS["owned_touched"]),
+            "They touched", help="Of those, how many they personally worked in this window."),
         "coverage_pct": st.column_config.NumberColumn(
-            "Coverage", format="%d%%", help=ui.DEFS["coverage_pct"]),
+            "Coverage", format="%d%%", help="They touched / Owns."),
     })
 
-# --- neglected top-tier accounts as floating bubbles ----------------------------
+# --- neglected top-tier accounts -------------------------------------------------
 st.subheader("Neglected top-tier accounts")
-ui.pill("<b>%d</b> owned top-tier accounts with zero touches from anyone in this window"
-        % len(t01), "red")
-st.caption("Top tier = HubSpot Tier 0 and Tier 1 — leadership's own best-fit designation, "
-           "the one place we deliberately lean on tier because it marks the accounts that "
-           "matter most. Each bubble below is one such account nobody on the team touched, "
-           "clustered under its owning CA (bigger bubble = Tier 0). Touch counts are a floor: "
-           "zero means no recorded touch.")
+ui.pill("<b>%d</b> owned top-tier accounts, zero recorded touches by anyone" % len(t01), "red")
+st.caption("Top tier = HubSpot Tier 0/1.")
 if len(t01):
-    neg = t01.copy()
-    neg["bubble"] = neg.icp_tier.map({"Tier 0": 3, "Tier 1": 1})
-    neg["rank"] = neg.groupby("owner_name").cumcount()
-    owners = neg.groupby("owner_name").size().sort_values(ascending=False).index.tolist()
-    st.altair_chart(ui.themed(
-        alt.Chart(neg).mark_circle(opacity=0.75, stroke="#161A21", strokeWidth=1).encode(
-            x=alt.X("owner_name:N", sort=owners, title=None, axis=alt.Axis(labelAngle=-40)),
-            y=alt.Y("rank:Q", axis=None, title=None),
-            size=alt.Size("bubble:Q", legend=None, scale=alt.Scale(range=[90, 430])),
-            color=alt.Color("owner_name:N", legend=None,
-                            scale=alt.Scale(scheme="set2")),
-            tooltip=[alt.Tooltip("account_name:N", title="Account"),
-                     alt.Tooltip("owner_name:N", title="Owner"),
-                     alt.Tooltip("icp_tier:N", title="Tier")],
-        ).properties(height=max(240, 30 * neg.groupby("owner_name").size().max()))),
-        use_container_width=True)
-    st.caption("Hover a bubble for the account name and tier.")
+    counts = (t01.groupby(["owner_name", "icp_tier"]).size()
+                 .reset_index(name="n"))
+    owners = (t01.groupby("owner_name").size()
+                 .sort_values(ascending=False).index.tolist())
+    bar_col, list_col = st.columns([1.3, 1.7])
+    with bar_col:
+        st.altair_chart(ui.themed(
+            alt.Chart(counts).mark_bar().encode(
+                x=alt.X("n:Q", title="Accounts"),
+                y=alt.Y("owner_name:N", sort=owners, title=None),
+                color=alt.Color("icp_tier:N", title=None,
+                                scale=alt.Scale(domain=["Tier 0", "Tier 1"],
+                                                range=["#BF616A", "#D8A0A6"])),
+                tooltip=["owner_name", "icp_tier", "n"],
+            ).properties(height=26 * len(owners))),
+            use_container_width=True)
+    with list_col:
+        who = st.selectbox("List one CA's accounts", owners)
+        st.dataframe(
+            t01[t01.owner_name == who][["account_name", "icp_tier"]]
+                .sort_values(["icp_tier", "account_name"]),
+            hide_index=True, use_container_width=True,
+            column_config={"account_name": "Account", "icp_tier": "Tier"})
 else:
     st.success("None in this window.")
 

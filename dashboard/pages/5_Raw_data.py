@@ -45,14 +45,25 @@ rows = db.q(queries.AUDIT_ROWS,
              counted, counted, counted, search, like, like))
 
 disp = rows.drop(columns=["activity_id"]).copy()
-disp.insert(3, "channel_label", disp.pop("channel").map(lambda c: ui.CHANNEL_LABELS.get(c, c)))
+disp["channel"] = disp["channel"].map(lambda c: ui.CHANNEL_LABELS.get(c, c))
+# what a sales leader scans for first, left to right; plumbing last
+disp = disp[["activity_date", "ca_name", "channel", "account_name", "subject",
+             "contact_email", "counts", "excluded_reason", "occurred_at",
+             "direction", "is_automated", "dup_count", "logged_by", "source"]]
 event = st.dataframe(
     disp, hide_index=True, use_container_width=True, height=380,
     on_select="rerun", selection_mode="single-row", key="raw_rows",
     column_config={
-        "channel_label": "Channel",
+        "activity_date": st.column_config.DateColumn("Date"),
+        "ca_name": st.column_config.TextColumn("CA"),
+        "channel": "Channel",
+        "account_name": "Account",
+        "subject": "Subject",
+        "contact_email": "Contact",
         "counts": st.column_config.CheckboxColumn("Counted"),
         "excluded_reason": "Why excluded",
+        "occurred_at": st.column_config.DatetimeColumn("Exact time"),
+        "is_automated": st.column_config.CheckboxColumn("Automated"),
         "dup_count": st.column_config.NumberColumn(
             "Copies", help="Duplicate tool records collapsed into this one row."),
         "logged_by": st.column_config.ListColumn("Logged by"),

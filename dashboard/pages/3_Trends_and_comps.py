@@ -53,9 +53,7 @@ if frames:
     st.altair_chart(
         ui.trend_chart(d, measure, "who", order, who_domain, palette[:len(who_domain)], height=360),
         use_container_width=True)
-    st.caption("One dot per week of data — the dots are the data; lines just connect them, "
-               "and each line is labelled at its latest point. The latest week is partial "
-               "until Sunday. The lime line is the whole team.")
+    st.caption("Latest week is partial until Sunday.")
 
 with st.expander("Table — weeks × CAs"):
     pv = wk.pivot_table(index="ca_name", columns="week", values=measure)

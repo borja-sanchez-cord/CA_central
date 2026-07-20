@@ -60,8 +60,7 @@ st.altair_chart(
                    [ui.MEASURE_LABELS[c] for c in trend_cols],
                    [ui.MEASURE_COLORS[c] for c in trend_cols], height=280),
     use_container_width=True)
-st.caption("One dot per week of data — the dots are the data; lines just connect them. "
-           "Each line is labelled at its latest point. The latest week is partial until Sunday.")
+st.caption("Latest week is partial until Sunday.")
 
 # --- account breakdown --------------------------------------------------------
 st.subheader("Which accounts the touchpoints went into")
@@ -74,8 +73,7 @@ no_acc = acc[acc.account_name == "(no account matched)"]
 acc_v = acc[acc.account_name != "(no account matched)"].copy()
 total_tp = int(acc.touchpoints.sum())
 if len(no_acc):
-    ui.pill("<b>%d</b> of %d touchpoints had no account recorded "
-            "(mostly LinkedIn & dials) — counted in totals, can't be tied to a company"
+    ui.pill("<b>%d</b> of %d touchpoints have no account recorded — still counted in totals"
             % (int(no_acc.touchpoints.iloc[0]), total_tp))
 
 ch_cols = ["auto_email", "manual_email", "calls", "linkedin", "inbound_replies"]
@@ -115,11 +113,12 @@ if len(acc_v):
             "icp_tier": st.column_config.TextColumn("Tier"),
             "last_touch": st.column_config.DateColumn("Last touch"),
         })
-    st.caption("Meetings aren't in this view — they can't be tied to accounts yet.")
 
 # --- drill to people at one account ------------------------------------------
-st.subheader("People at one account")
-target = st.selectbox("Account", acc_v.account_name.tolist())
+st.subheader("Drill into one account")
+target = st.selectbox("Pick an account to see exactly who %s contacted there" % rep,
+                      acc_v.account_name.tolist())
+st.markdown("**Who %s contacted at %s**" % (rep, target))
 ppl = db.q(queries.ACCOUNT_CONTACTS, (start, end, rep, target))
 if ppl.empty:
     st.info("No person-level rows here (activity logged without a contact).")

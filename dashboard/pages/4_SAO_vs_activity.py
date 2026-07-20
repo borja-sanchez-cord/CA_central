@@ -69,9 +69,8 @@ st.dataframe(
                                                        help=ui.DEFS["saos_outbound"]),
         "pipeline_usd": st.column_config.NumberColumn("Pipeline $", format="$%d"),
     })
-st.caption("Purple-tinted columns = activity (our verified data); lime-tinted = results "
-           "(verbatim from Ray's tracker, joined by rep — nothing recomputed). "
-           "* after a name = ramping (reduced target).")
+st.caption("Purple tint = activity (our data) | lime tint = results (Ray's tracker). "
+           "* = ramping.")
 
 # --- effort vs results, side by side -------------------------------------------
 st.subheader("Meetings booked vs SAOs, per CA")
@@ -92,8 +91,7 @@ with c1:
             tooltip=["ca", "what", "n"],
         ).properties(height=26 * len(sort_order) * 2 // 2 + 60)),
         use_container_width=True)
-    st.caption("Purple = meetings booked; lime = SAOs landed. Big purple with no lime "
-               "can mean meetings that didn't convert — or SAOs still coming (the lag).")
+    st.caption("Big purple, no lime = meetings that didn't convert yet (or the lag).")
 with c2:
     st.altair_chart(ui.themed(
         alt.Chart(j.dropna(subset=["attainment_pct"])).mark_bar().encode(
@@ -104,7 +102,7 @@ with c2:
             tooltip=["ca", "saos", "sao_target", "attainment_pct"],
         ).properties(height=26 * len(sort_order) + 60)),
         use_container_width=True)
-    st.caption("Lime = target hit. Ramping CAs (*) carry reduced targets.")
+    st.caption("Lime = target hit.")
 
 with st.expander("One CA, month by month (incl. months before activity tracking)"):
     rep = st.selectbox("CA", sorted(sao[sao.rep_name.isin(ms.ca_name)].rep_name.unique()))

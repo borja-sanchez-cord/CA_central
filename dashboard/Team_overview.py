@@ -30,8 +30,6 @@ ui.kpi_row([
      "help": ui.DEFS["meetings_booked"]},
     {"label": "Other", "value": int(sc.other_outreach.sum()), "help": ui.DEFS["other"]},
 ])
-st.caption("The six channel cards (Emails + Dials + LinkedIn + Inbound + Meetings + Other) "
-           "add up exactly to Activities.")
 st.write("")
 
 # --- per-rep scorecard table: red->green heatmap per column ------------------
@@ -44,9 +42,13 @@ cols_int = ["total_counted", "auto_email", "manual_email", "emails", "dials",
 show = sc[["ca_name"] + cols_int + ["coverage_pct"]].copy()
 for c in cols_int:
     show[c] = show[c].fillna(0).astype(int)
-heat_cols = cols_int + ["coverage_pct"]
+# direction-aware: canceled/unlogged meetings are BAD when high; owning more
+# accounts is neither good nor bad, so it stays unshaded.
+good = [c for c in cols_int + ["coverage_pct"]
+        if c not in ("meetings_canceled", "meetings_unknown", "accounts_owned")]
+bad = ["meetings_canceled", "meetings_unknown"]
 st.dataframe(
-    ui.heat_styler(show, heat_cols), hide_index=True, use_container_width=True, height=640,
+    ui.heat_styler(show, good, bad), hide_index=True, use_container_width=True, height=640,
     column_config={
         "ca_name": st.column_config.TextColumn("CA", pinned=True),
         "total_counted": st.column_config.NumberColumn("Activities", help=ui.DEFS["total_counted"]),
@@ -70,8 +72,6 @@ st.dataframe(
         "owned_touched": st.column_config.NumberColumn("Owned touched", help=ui.DEFS["owned_touched"]),
         "coverage_pct": st.column_config.NumberColumn("Coverage", format="%d%%", help=ui.DEFS["coverage_pct"]),
     })
-st.caption("Each column is shaded within its own range — green = high, red = low — so the "
-           "leaders and laggards on every measure jump out. Hover any header for its definition.")
 
 # --- channel mix ------------------------------------------------------------
 st.subheader("Channel mix per CA")
@@ -104,5 +104,4 @@ st.altair_chart(ui.themed(
         tooltip=["ca_name", "status", "count"],
     ).properties(height=26 * n)),
     use_container_width=True)
-st.caption("Unknown = no outcome logged (that's most of them — reps log outcomes on ~20%). "
-           "Never assume unknown means held.")
+st.caption("Unknown = no outcome logged. Never assume held.")

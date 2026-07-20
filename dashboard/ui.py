@@ -20,9 +20,9 @@ import queries
 
 PURPLE = "#6223E9"
 LIME = "#B3E249"
-BG_CARD = "#20242E"
-BORDER = "#2C313D"
-TEXT_DIM = "#98A0AE"
+BG_CARD = "#272D39"
+BORDER = "#39404E"
+TEXT_DIM = "#A2A9B6"
 
 # --- soft/muted channel palette (family-grouped) ---------------------------
 CHANNEL_COLORS = {
@@ -249,18 +249,24 @@ def _lerp(a, b, t):
     return tuple(int(round(a[i] + (b[i] - a[i]) * t)) for i in range(3))
 
 
-def heat_styler(df, cols):
-    """Red(low) -> amber -> green(high) per-column background heatmap, muted,
-    with dark text for legibility. Dependency-free (no matplotlib)."""
+def heat_styler(df, good_cols, bad_cols=()):
+    """Direction-aware per-column heatmap, muted, dependency-free.
+    good_cols: green when HIGH (effort/results). bad_cols: red when HIGH
+    (e.g. canceled meetings, unlogged outcomes) — high is not always good.
+    Columns in neither list stay unshaded (no value judgment)."""
     LO, MID, HI = (191, 97, 106), (228, 192, 122), (163, 190, 140)
+    cols = list(good_cols) + list(bad_cols)
     mins = {c: df[c].min() for c in cols}
     maxs = {c: df[c].max() for c in cols}
+    flip = set(bad_cols)
 
     def _cell(col, v):
         if pd.isna(v):
             return ""
         lo, hi = mins[col], maxs[col]
         t = 0.5 if hi == lo else (v - lo) / (hi - lo)
+        if col in flip:
+            t = 1 - t
         rgb = _lerp(LO, MID, t / 0.5) if t < 0.5 else _lerp(MID, HI, (t - 0.5) / 0.5)
         return "background-color: rgb(%d,%d,%d); color:#14171E" % rgb
 
@@ -305,4 +311,7 @@ def trend_chart(df, value_col, series_col, order, domain, rng, height=320):
         y=alt.Y("%s:Q" % value_col),
         text=alt.Text("%s:N" % series_col),
         color=alt.Color("%s:N" % series_col, scale=scale, legend=None))
-    return themed((line + labels).properties(height=height).resolve_scale(color="shared"))
+    return themed((line + labels)
+                  .properties(height=height,
+                              padding={"left": 5, "right": 120, "top": 5, "bottom": 30})
+                  .resolve_scale(color="shared"))
