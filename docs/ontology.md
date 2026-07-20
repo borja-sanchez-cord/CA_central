@@ -67,6 +67,17 @@ activities; these are the derived numbers built on top.
 | **Owned touched** | Of the rep's *owned* accounts, how many they personally touched in the window. | A colleague touching your account does **not** count here. |
 | **Coverage %** | Owned touched ÷ accounts owned. "Of the accounts I'm responsible for, what share did I work this period." | Likely a slight *under*-count (missing-company gap can only hide touches, never invent them). Compare reps to each other, watch the trend. |
 
+## Drill-down measures (rep → account → person — Phase 5)
+
+Computed per time window by the `rep_account_drilldown()` / `account_contact_drilldown()` / `owned_account_coverage()` views. **Meetings are not in these** (they can't be tied to an account yet — see Meeting above); they stay in the rep scorecard.
+
+| Measure | Definition | Watch out |
+|---|---|---|
+| **Touchpoints** | Counted activities (emails, calls, LinkedIn, inbound) filed under that account or person. | Excludes meetings; the ~60% of activity with no matched company sits in an explicit **"(no account matched)"** row per rep — visible, so rep totals still reconcile. |
+| **People touched** | Distinct people the rep reached at that account. | |
+| **Owner touches vs team touches** | On the neglect view: activity on an owned account by its owner, vs by any CA. "Owner 0, team 12" ≠ "0 and 0". | |
+| **Neglect view** | Every CA-owned account **including zeros** — an owned account nobody touched is still a row. | Touch counts are a floor (missing-company gap): zero means "no *recorded* touch". |
+
 ## Appendix — audit fields (for trust, not for reading)
 
 Every row also carries its full audit trail: the raw tool records behind it
