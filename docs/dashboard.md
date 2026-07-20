@@ -41,30 +41,35 @@ login. Exposing a new object to the dashboard is a deliberate act (an explicit
 
 ## Screens
 
-1. **Team overview** (landing) — pick a window (7d / 30d / all time / custom);
-   every CA side by side: channels, meetings **always split**
-   booked/held/canceled/scheduled/unknown, coverage %. "Data as of" stamp on
-   every page.
-2. **Rep detail** (click a CA) — their scorecard for the window, week-by-week
-   trend, and their **account breakdown**: every account their touchpoints
-   went into (tier, owned-or-not, people touched), including the explicit
-   "(no account matched)" row so totals reconcile. Click an account → the
-   people touched at it.
-3. **Heat map & neglect** — where each rep's effort lands by ICP tier
-   (rep × tier grid), plus the owned-account coverage table: every owned
-   account incl. zero-touch ones, owner touches vs team touches, Tier 0/1
-   neglect flagged red.
-4. **Trends** — weekly lines per rep / team for any measure (activity, emails,
-   dials, meetings booked…). Current week labelled partial. This is the
-   "are coaching changes working" screen; it gets better every week.
-5. **SAO vs activity** (monthly) — per rep per month: activity, meetings
-   booked, SAOs achieved, target, attainment, pipeline $, with SAOs split
-   inbound / event / outbound. **Labelled "directional"** (see timing rules).
-6. **Audit (drill-to-raw)** — filter any rep/day/channel and see the actual
-   underlying rows from `activity_flat`: timestamp, tool(s) that logged it,
-   subject, **email body**, duplicates collapsed, and — for non-counted rows —
-   the exact exclusion reason. Any number on any screen can be manually
-   verified here. Inbound bodies are prospects' words — internal use only.
+Every tab: one-sentence explainer, in-tab time-window pills (7d / 30d / all
+time / custom — timeframes never in titles), live "Last update" pill + active
+refresh banner (from `ingestion_runs`, migration 005). Dark theme, two accents
+(purple = interactive, lime = outcomes); channels colour-coded by family
+(greens = email, reds = phone, blues = LinkedIn, purple = meetings,
+amber = inbound) across all tables and charts.
+
+1. **Team overview** (landing) — every CA side by side: KPI cards with
+   sub-numbers (auto/manual, conversations, meetings split), family-tinted
+   scorecard table, channel mix, meetings **always split**
+   booked/held/canceled/scheduled/unknown.
+2. **Per CA** (pick a CA) — KPI cards, dot-first week-by-week trend, account
+   breakdown stacked by channel (unmatched activity shown as an explainer
+   pill, still counted — totals reconcile). Pick an account → the people
+   touched at it.
+3. **Account coverage** — CA × account heat map (the team's most-touched
+   accounts), owned-account coverage table, neglected top-tier accounts
+   grouped per CA (counts in pills, never titles).
+4. **Trends** — weekly dot-first lines for any measure; explicit "Whole team"
+   entry plus any CAs for comparison. The "are coaching changes working"
+   screen; it gets better every week.
+5. **SAO vs activity** (monthly) — activity (purple-tinted columns) next to
+   Ray's results (lime-tinted), Ⓡ = ramping, paired meetings-vs-SAOs bars,
+   attainment. **Labelled "directional"** (see timing rules).
+6. **Raw data** — the live read-only view of `activity_flat`: filter, click
+   any row → full detail incl. **email body**, duplicates collapsed, and the
+   exact exclusion reason for non-counted rows ("Counted in reports" vs
+   "Excluded, kept for audit"). Inbound bodies are prospects' words —
+   internal use only.
 
 ## SAO integration — source & timing rules (agreed 2026-07-20)
 
