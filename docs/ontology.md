@@ -21,6 +21,8 @@ kept but labeled with why it was excluded (see appendix).
 
 WhatsApp and SMS steps have defined slots but none have appeared in the data yet.
 
+**Why the email automated/manual split is "good, not perfect" — the one limitation to know.** We decide it from *which tool logged the email*, **not by reading the email**. That's reliable at the two ends: an email only a sequence tool recorded → automated; an email sent from the rep's own Gmail or typed into HubSpot → manual. The gap is in the middle: **a rep who writes a genuinely personal email but sends it *through* AmpleMarket is labelled automated** — because to us an AmpleMarket send looks identical whether it's a template or hand-written (it logs the same way, with no separate Gmail copy). So the label reflects *"was a sequencing tool involved,"* which is also how the reps themselves think of it — not *"did they personally craft it."* It's uncommon, and the bias is small. The real safeguard: **we store the full email body**, so any rep's emails can be read to check whether they're templates or bespoke (this is the Phase 6 quality lens — available now for email; not yet for LinkedIn, where we don't capture the message text).
+
 ## Call terms
 
 | Term | Definition |
