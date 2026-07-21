@@ -185,6 +185,13 @@ def data_range():
     return df.iloc[0]["first_day"], df.iloc[0]["last_day"]
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def inactive_reps():
+    """CAs who left the team — kept in reports (history) but no longer active."""
+    df = db.q(queries.INACTIVE_REPS)
+    return set(df["name"]) if len(df) else set()
+
+
 def window_pills(first, last, key="win"):
     """7/30-day rolling windows, calendar months (Ray's SAO clock), all, custom."""
     months = []          # newest first: (label, month_start)

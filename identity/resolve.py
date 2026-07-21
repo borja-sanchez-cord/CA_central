@@ -71,10 +71,12 @@ create table if not exists dim_ca (
     ca_id text primary key,            -- HubSpot owner id
     name text not null,
     primary_email text not null,
-    ca_teams text not null,            -- '; '-joined CA sub-team names
+    ca_teams text not null,            -- '; '-joined CA sub-team names (last known)
+    is_active boolean not null default true,  -- false = departed but RETAINED so history stays attributed
     resolved_at timestamptz not null default now()
 );
 alter table dim_ca drop column if exists amplemarket_user_id;  -- moved to ca_amplemarket_user (a CA can have >1 account)
+alter table dim_ca add column if not exists is_active boolean not null default true;
 -- A CA can hold MULTIPLE AmpleMarket accounts (e.g. an @encord.ai one and an
 -- @encord.com one, calls split across both — found live: Callum 17 + Nico 7
 -- calls sat under second accounts). Many-to-one link, never a single column.
@@ -196,17 +198,44 @@ def derive_cas(conn):
                 for r in cur.fetchall()]
 
 
+def retain_departed(conn, active_cas):
+    """Carry departed CAs into the roster flagged is_active=false, so their
+    historical activity stays attributed — a rep who leaves must not vanish from
+    past reports (they did real work). This makes the old "shrink" failure mode
+    structural: a known CA can no longer be silently dropped, because we keep
+    them. A rejoin (reappears in the derived set) flips them back to active.
+
+    Escape hatch: RESOLVE_ALLOW_SHRINK=1 PURGES departed CAs instead of retaining
+    (rare — only when someone was added by mistake and should leave no trace).
+    """
+    for c in active_cas:
+        c["is_active"] = True
+    if os.environ.get("RESOLVE_ALLOW_SHRINK") == "1":
+        return active_cas
+    with conn.cursor() as cur:
+        cur.execute("select to_regclass('dim_ca')")
+        if cur.fetchone()[0] is None:
+            return active_cas                      # first run: no prior roster
+        active_ids = {c["ca_id"] for c in active_cas}
+        cur.execute("select ca_id, name, primary_email, ca_teams from dim_ca")
+        departed = [{"ca_id": r[0], "name": r[1], "email": r[2], "teams": r[3],
+                     "is_active": False}
+                    for r in cur.fetchall() if r[0] not in active_ids]
+    return active_cas + departed
+
+
 def guard_roster(conn, cas):
-    """Refuse to rebuild when the derived roster looks wrong (audit 2026-07-15).
+    """Refuse to rebuild when the DERIVED roster looks wrong (audit 2026-07-15).
 
     A bad upstream state used to destroy the roster silently: empty raw tables
     (or a HubSpot team rename that makes a config row match nothing) -> a
-    zero/short roster -> rebuild() deletes dim_ca and exits 0. Three fatal
-    checks, all BEFORE any table is touched:
+    zero/short roster -> rebuild() deletes dim_ca and exits 0. Two fatal checks,
+    BEFORE any table is touched:
       1) zero CAs derived;
-      2) any config_ca_teams row whose team names match no current owner;
-      3) the new roster drops someone present in the current dim_ca
-         (override with RESOLVE_ALLOW_SHRINK=1 for a real departure).
+      2) any config_ca_teams row whose team names match no current owner.
+    (The old check 3 — "roster dropped a CA present in dim_ca" — is gone:
+    retain_departed() now keeps departed CAs as inactive, so silent loss is
+    impossible by construction rather than by an abort.)
     Additions to the roster are always fine.
     """
     if not cas:
@@ -239,19 +268,8 @@ def guard_roster(conn, cas):
             sys.exit("FATAL: config_ca_teams row(s) match no owners — likely a team "
                      "rename in HubSpot or a config typo; fix, then re-run:\n"
                      + "\n".join(bad))
-
-        # Shrink guard: never silently drop a CA people are reporting on.
-        cur.execute("select to_regclass('dim_ca')")
-        if cur.fetchone()[0] is None:
-            return  # first run: no previous roster to compare against
-        cur.execute("select ca_id, name from dim_ca")
-        new_ids = {ca["ca_id"] for ca in cas}
-        gone = sorted(name for ca_id, name in cur.fetchall() if ca_id not in new_ids)
-    if gone and os.environ.get("RESOLVE_ALLOW_SHRINK") != "1":
-        sys.exit("FATAL: derived roster is missing current CA(s): " + ", ".join(gone)
-                 + " — refusing to shrink dim_ca (usually a HubSpot team rename or "
-                 "membership change upstream). If this is a real departure, re-run "
-                 "with RESOLVE_ALLOW_SHRINK=1.")
+    # (No shrink check here: retain_departed() keeps any CA that leaves the
+    # current teams as inactive, so a known CA can never be silently dropped.)
 
 
 def link_addresses(conn, cas):
@@ -530,11 +548,12 @@ def main():
         cur.execute(DDL)
     conn.commit()
 
-    cas = derive_cas(conn)
-    guard_roster(conn, cas)  # bail on a bad roster BEFORE any table is touched
+    active_cas = derive_cas(conn)
+    guard_roster(conn, active_cas)  # bail on a catastrophic roster BEFORE any table is touched
+    cas = retain_departed(conn, active_cas)  # keep leavers as inactive (history stays attributed)
     addresses, ample_users, parked = link_addresses(conn, cas)
-    rebuild(conn, "dim_ca", ["ca_id", "name", "primary_email", "ca_teams"],
-            [(c["ca_id"], c["name"], c["email"], c["teams"]) for c in cas])
+    rebuild(conn, "dim_ca", ["ca_id", "name", "primary_email", "ca_teams", "is_active"],
+            [(c["ca_id"], c["name"], c["email"], c["teams"], c["is_active"]) for c in cas])
     rebuild(conn, "dim_ca_address", ["address", "ca_id", "source"],
             [(a, ca_id, src) for a, (ca_id, src) in sorted(addresses.items())])
     rebuild(conn, "ca_amplemarket_user", ["amplemarket_user_id", "ca_id"],

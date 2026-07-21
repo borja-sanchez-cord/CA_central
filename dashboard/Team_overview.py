@@ -34,6 +34,10 @@ ui.kpi_row([
              "inbound scheduler — still counted today."},
     {"label": "Other", "value": int(sc.other_outreach.sum()), "help": ui.DEFS["other"]},
 ])
+_inactive = ui.inactive_reps()
+if _inactive:
+    st.caption("Left the CA team — history kept, recent activity tapers to zero as the "
+               "window moves: " + ", ".join(sorted(_inactive)))
 st.write("")
 
 # --- per-rep scorecard table: red->green heatmap per column ------------------

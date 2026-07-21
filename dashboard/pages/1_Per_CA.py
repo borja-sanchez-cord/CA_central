@@ -12,8 +12,10 @@ first, last = ui.setup(
     "One CA's activity: what they did, how it's trending, and which accounts it went into.")
 
 reps = db.q(queries.REPS)["name"].tolist()
+_inactive = ui.inactive_reps()
 c1, _ = st.columns([1.4, 2])
-rep = c1.selectbox("Customer Associate", reps, label_visibility="collapsed")
+rep = c1.selectbox("Customer Associate", reps, label_visibility="collapsed",
+                   format_func=lambda n: n + "  ·  left team" if n in _inactive else n)
 start, end, label = ui.window_pills(first, last)
 
 sc = db.q(queries.SCORECARD, (start, end))
