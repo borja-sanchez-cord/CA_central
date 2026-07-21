@@ -35,7 +35,8 @@ REP_ACCOUNTS = """
 """
 
 REP_ACCOUNTS_ALL = """
-    select ca_name, account_name, icp_tier, touchpoints
+    select ca_name, account_name, icp_tier, touchpoints,
+           owned_by_rep_id, owned_by_this_rep
     from rep_account_drilldown(%s, %s)
 """
 

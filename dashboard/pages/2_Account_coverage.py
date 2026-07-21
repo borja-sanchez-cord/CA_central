@@ -33,28 +33,62 @@ st.caption("Top 25 most-touched accounts. Brighter = more touchpoints.")
 
 # --- accounts by touchpoint volume (distribution per CA) ------------------------
 st.subheader("Accounts by touchpoint volume")
-BUCKETS = [("1-9", 1, 9), ("10-24", 10, 24), ("25-49", 25, 49),
-           ("50-99", 50, 99), ("100+", 100, 10**9)]
 dv = db.q(queries.REP_ACCOUNTS_ALL, (start, end))
 dv = dv[dv.account_name != "(no account matched)"].copy()
-dv["bucket"] = pd.cut(dv.touchpoints,
-                      bins=[0, 9, 24, 49, 99, 10**9],
-                      labels=[b[0] for b in BUCKETS])
-dist = dv.groupby(["ca_name", "bucket"], observed=True).size().reset_index(name="accounts")
 order_ca = dv.groupby("ca_name").size().sort_values(ascending=False).index.tolist()
-st.altair_chart(ui.themed(
-    alt.Chart(dist).mark_bar().encode(
-        x=alt.X("accounts:Q", title="Accounts"),
-        y=alt.Y("ca_name:N", sort=order_ca, title=None),
-        color=alt.Color("bucket:N", title="Touchpoints",
-                        scale=alt.Scale(domain=[b[0] for b in BUCKETS],
-                                        range=["#4A415F", "#5C4A8F", "#6E52C4",
-                                               "#8A55F7", "#B3E249"])),
-        tooltip=["ca_name", "bucket", "accounts"],
-    ).properties(height=26 * max(1, len(order_ca)))),
-    use_container_width=True)
-st.caption("Depth vs spread: many accounts at 1-9 touchpoints = wide and shallow; "
-           "100+ on one account = concentrated bets.")
+
+colour_by = st.radio(
+    "Colour by", ["Ownership", "Touchpoint depth"], horizontal=True,
+    label_visibility="collapsed", key="volume_colour")
+
+if colour_by == "Ownership":
+    # Each bar = every account the CA touched (owned or not). Split so the
+    # "Owned by this CA" segment lines up with the Owned-accounts table below
+    # — the two visuals use different denominators, so make the gap visible.
+    def own_class(row):
+        if row.owned_by_this_rep:
+            return "Owned by this CA"
+        return "Owned by someone else" if row.owned_by_rep_id else "No owner in HubSpot"
+    OWN_ORDER = ["Owned by this CA", "Owned by someone else", "No owner in HubSpot"]
+    OWN_COLOR = ["#6223E9", "#8A7CB8", "#5A616E"]   # yours = bright, else muted, none = grey
+    dv["seg"] = dv.apply(own_class, axis=1)
+    dist = (dv.groupby(["ca_name", "seg"], observed=True).size()
+              .reset_index(name="accounts"))
+    dist["seg_order"] = dist.seg.map({s: i for i, s in enumerate(OWN_ORDER)})
+    st.altair_chart(ui.themed(
+        alt.Chart(dist).mark_bar().encode(
+            x=alt.X("accounts:Q", title="Accounts touched"),
+            y=alt.Y("ca_name:N", sort=order_ca, title=None),
+            color=alt.Color("seg:N", title=None,
+                            scale=alt.Scale(domain=OWN_ORDER, range=OWN_COLOR),
+                            sort=OWN_ORDER),
+            order=alt.Order("seg_order:Q"),
+            tooltip=["ca_name", "seg", "accounts"],
+        ).properties(height=26 * max(1, len(order_ca)))),
+        use_container_width=True)
+    st.caption("Every account each CA touched. The purple 'Owned by this CA' segment "
+               "equals their number in the Owned-accounts table below — the rest are "
+               "accounts they worked but don't own.")
+else:
+    BUCKETS = [("1-9", 1, 9), ("10-24", 10, 24), ("25-49", 25, 49),
+               ("50-99", 50, 99), ("100+", 100, 10**9)]
+    dv["bucket"] = pd.cut(dv.touchpoints,
+                          bins=[0, 9, 24, 49, 99, 10**9],
+                          labels=[b[0] for b in BUCKETS])
+    dist = dv.groupby(["ca_name", "bucket"], observed=True).size().reset_index(name="accounts")
+    st.altair_chart(ui.themed(
+        alt.Chart(dist).mark_bar().encode(
+            x=alt.X("accounts:Q", title="Accounts"),
+            y=alt.Y("ca_name:N", sort=order_ca, title=None),
+            color=alt.Color("bucket:N", title="Touchpoints",
+                            scale=alt.Scale(domain=[b[0] for b in BUCKETS],
+                                            range=["#4A415F", "#5C4A8F", "#6E52C4",
+                                                   "#8A55F7", "#B3E249"])),
+            tooltip=["ca_name", "bucket", "accounts"],
+        ).properties(height=26 * max(1, len(order_ca)))),
+        use_container_width=True)
+    st.caption("Depth vs spread: many accounts at 1-9 touchpoints = wide and shallow; "
+               "100+ on one account = concentrated bets.")
 
 # --- owned-account coverage per CA ---------------------------------------------
 st.subheader("Owned accounts")
