@@ -224,6 +224,34 @@ def retain_departed(conn, active_cas):
     return active_cas + departed
 
 
+def retain_departed_links(conn, cas, addresses, ample_users):
+    """Carry forward previously-verified links (addresses + AmpleMarket account
+    ids) for INACTIVE CAs from the current snapshot. Offboarding wipes upstream
+    records (AmpleMarket empties mailboxes, may later delete the user), and a
+    departed CA's history must stay attributed. Active CAs keep pure live
+    derivation so upstream corrections still propagate. setdefault = live
+    evidence always wins; retention only fills what upstream forgot.
+    Skipped in PURGE mode (RESOLVE_ALLOW_SHRINK=1)."""
+    if os.environ.get("RESOLVE_ALLOW_SHRINK") == "1":
+        return
+    inactive = {c["ca_id"] for c in cas if not c.get("is_active", True)}
+    if not inactive:
+        return
+    with conn.cursor() as cur:
+        cur.execute("select to_regclass('dim_ca_address')")
+        if cur.fetchone()[0] is not None:
+            cur.execute("select address, ca_id from dim_ca_address")
+            for addr, ca_id in cur.fetchall():
+                if ca_id in inactive:
+                    addresses.setdefault(addr, (ca_id, "retained_departed"))
+        cur.execute("select to_regclass('ca_amplemarket_user')")
+        if cur.fetchone()[0] is not None:
+            cur.execute("select amplemarket_user_id, ca_id from ca_amplemarket_user")
+            for uid, ca_id in cur.fetchall():
+                if ca_id in inactive:
+                    ample_users.setdefault(uid, ca_id)
+
+
 def guard_roster(conn, cas):
     """Refuse to rebuild when the DERIVED roster looks wrong (audit 2026-07-15).
 
@@ -352,10 +380,18 @@ def link_addresses(conn, cas):
                 ca = by_local.get(norm_local(a))
                 if ca is None:
                     park(a, f"internal-domain sender, no CA match ({n} emails)")
-                elif d in LINKABLE_DOMAINS and (a == ca["email"] or
-                                                a in verified.get(ca["ca_id"], ())):
-                    # verifiably the CA's own address — safe to auto-link
-                    addresses.setdefault(a, (ca["ca_id"], "observed_sender"))
+                    continue
+                verified_own = (a == ca["email"] or a in verified.get(ca["ca_id"], ()))
+                # DEPARTED CAs: offboarding wipes their upstream records
+                # (found live 2026-07-21 — AmpleMarket emptied Will Sawyer's
+                # mailboxes, orphaning 779 sends from his @encord.ai address).
+                # A departed CA can't acquire new addresses and the roster
+                # guarantees unique local parts, so the local match IS the
+                # best remaining evidence — link instead of parking.
+                departed = not ca.get("is_active", True)
+                if d in LINKABLE_DOMAINS and (verified_own or departed):
+                    src = "observed_sender" if verified_own else "observed_sender_departed"
+                    addresses.setdefault(a, (ca["ca_id"], src))
                 else:
                     # local-part match alone is NOT proof of identity (audit
                     # 2026-07-15): park for review instead of mis-attributing
@@ -552,6 +588,7 @@ def main():
     guard_roster(conn, active_cas)  # bail on a catastrophic roster BEFORE any table is touched
     cas = retain_departed(conn, active_cas)  # keep leavers as inactive (history stays attributed)
     addresses, ample_users, parked = link_addresses(conn, cas)
+    retain_departed_links(conn, cas, addresses, ample_users)  # leavers keep their verified links too
     rebuild(conn, "dim_ca", ["ca_id", "name", "primary_email", "ca_teams", "is_active"],
             [(c["ca_id"], c["name"], c["email"], c["teams"], c["is_active"]) for c in cas])
     rebuild(conn, "dim_ca_address", ["address", "ca_id", "source"],
