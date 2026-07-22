@@ -14,7 +14,7 @@ start, end, label = ui.window_pills(first, last)
 
 # --- CA × account heat map ------------------------------------------------------
 st.subheader("Where the touchpoints are landing")
-d = db.q(queries.REP_ACCOUNTS_ALL, (start, end))
+d = ui.active_only(db.q(queries.REP_ACCOUNTS_ALL, (start, end)))
 d = d[d.account_name != "(no account matched)"]
 top_accounts = (d.groupby("account_name").touchpoints.sum()
                  .sort_values(ascending=False).head(25).index.tolist())
@@ -35,7 +35,7 @@ st.caption("Top 25 most-touched accounts. Brighter = more touchpoints.")
 st.subheader("Accounts by touchpoint volume")
 BUCKETS = [("1-9", 1, 9), ("10-24", 10, 24), ("25-49", 25, 49),
            ("50-99", 50, 99), ("100+", 100, 10**9)]
-dv = db.q(queries.REP_ACCOUNTS_ALL, (start, end))
+dv = ui.active_only(db.q(queries.REP_ACCOUNTS_ALL, (start, end)))
 dv = dv[dv.account_name != "(no account matched)"].copy()
 dv["bucket"] = pd.cut(dv.touchpoints,
                       bins=[0, 9, 24, 49, 99, 10**9],
@@ -59,7 +59,7 @@ st.caption("Depth vs spread: many accounts at 1-9 touchpoints = wide and shallow
 # --- owned-account coverage per CA ---------------------------------------------
 st.subheader("Owned accounts")
 st.caption("How much of what each CA owns are they actually working?")
-cov = db.q(queries.OWNED_COVERAGE, (start, end))
+cov = ui.active_only(db.q(queries.OWNED_COVERAGE, (start, end)), col="owner_name")
 # deal-derived labels (migration 008, Dillon #24+#25): joined for DISPLAY only —
 # none of the coverage numbers change, an account only ever gains a label.
 ds = db.q(queries.ACCOUNT_DEAL_STATUS)

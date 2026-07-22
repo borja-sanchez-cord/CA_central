@@ -199,6 +199,18 @@ def inactive_reps():
     return set(df["name"]) if len(df) else set()
 
 
+def active_only(df, col="ca_name"):
+    """Display-only: drop rows for departed CAs (dim_ca.is_active=false) so the
+    live view is the CURRENT team. Their history stays in the DB and still
+    counts in the model — nothing is deleted. Uses the departed set as a
+    denylist (not an active allowlist), so a name from another source that
+    isn't in dim_ca at all is never wrongly dropped. Future leavers vanish
+    automatically once resolve.py flags them inactive."""
+    if col not in df.columns:
+        return df
+    return df[~df[col].isin(inactive_reps())].reset_index(drop=True)
+
+
 def window_pills(first, last, key="win"):
     """7/30-day rolling windows, calendar months (Ray's SAO clock), all, custom."""
     months = []          # newest first: (label, month_start)

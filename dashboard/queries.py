@@ -93,7 +93,11 @@ AUDIT_DETAIL = """
 """
 
 CHANNELS = "select distinct channel from activity_flat order by 1"
-REPS = "select name from dim_ca order by is_active desc, name"
+# Only ACTIVE CAs populate the roster dropdowns / lists — departed CAs are
+# retained in dim_ca (is_active=false) so their history stays attributed in the
+# model, but the live dashboard view is the current team. INACTIVE_REPS drives
+# the display-only filter in ui.active_only().
+REPS = "select name from dim_ca where is_active order by name"
 INACTIVE_REPS = "select name from dim_ca where not is_active order by 1"
 
 # meetings auto-booked by the Revenue Hero scheduler (visible split — still

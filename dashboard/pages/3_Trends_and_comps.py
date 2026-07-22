@@ -23,7 +23,7 @@ win = st.pills("Weeks", ["Last 4 weeks", "Last 12 weeks", "All weeks"],
 c1, c2 = st.columns([1, 2])
 measure = c1.selectbox("Measure", MEASURES,
                        format_func=lambda m: ui.MEASURE_LABELS.get(m, m))
-wk = ui.week_label(db.q(queries.WEEKLY_TREND))
+wk = ui.active_only(ui.week_label(db.q(queries.WEEKLY_TREND)))
 # the 60-day meeting split (migration 007) rides along on (week, ca) — a
 # display-only join of two approved surfaces, nothing recomputed
 wk = wk.merge(

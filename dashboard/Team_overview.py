@@ -11,11 +11,11 @@ first, last = ui.setup(
     "How much outreach the whole team did, channel by channel, every CA side by side.")
 start, end, label = ui.window_pills(first, last)
 
-sc = db.q(queries.SCORECARD, (start, end))
+sc = ui.active_only(db.q(queries.SCORECARD, (start, end)))
 n = len(sc)
-rh = db.q(queries.MEETINGS_RH, (start, end))
+rh = ui.active_only(db.q(queries.MEETINGS_RH, (start, end)))
 rh_total = int(rh.rh.sum()) if len(rh) else 0
-mb = db.q(queries.MEETING_BREAKDOWN, (start, end))  # new/follow-up/no-account
+mb = ui.active_only(db.q(queries.MEETING_BREAKDOWN, (start, end)))  # new/follow-up/no-account
 
 ui.kpi_row([
     {"label": "Activities", "value": int(sc.total_counted.sum()), "help": ui.DEFS["total_counted"]},

@@ -11,7 +11,7 @@ first, last = ui.setup(
     "SAO vs activity",
     "Each CA's monthly activity next to the meetings and SAOs they produced.")
 
-ms = db.q(queries.MONTHLY_SCORECARD)
+ms = ui.active_only(db.q(queries.MONTHLY_SCORECARD))
 sao = db.q(queries.SAO_MONTHLY)
 mbm = db.q(queries.MEETING_BREAKDOWN_MONTHLY)  # new/follow-up/no-account per month
 
