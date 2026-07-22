@@ -9,7 +9,7 @@ import ui
 
 first, last = ui.setup(
     "SAO vs activity",
-    "Each CA's monthly activity next to the meetings and SAOs they produced — context, not causation.")
+    "Each CA's monthly activity next to the meetings and SAOs they produced.")
 
 ms = db.q(queries.MONTHLY_SCORECARD)
 sao = db.q(queries.SAO_MONTHLY)
@@ -143,8 +143,9 @@ st.dataframe(
         # Streamlit's number format has no comma flag, verified live 2026-07-21).
         "pipeline_usd": st.column_config.NumberColumn("Pipeline $", format="localized"),
     })
-st.caption("Purple tint = activity (our data) | lime tint = results (Ray's tracker). "
-           ":red[\\*] = ramping.")
+st.caption("Purple tint = activity (our data)")
+st.caption("Lime tint = results (Ray's tracker)")
+st.caption(":red[\\*] = ramping")
 
 with st.expander("One CA, month by month (incl. months before activity tracking)"):
     rep = st.selectbox("CA", sorted(sao[sao.rep_name.isin(ms.ca_name)].rep_name.unique()))

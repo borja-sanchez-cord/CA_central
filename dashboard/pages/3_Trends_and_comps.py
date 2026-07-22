@@ -11,8 +11,7 @@ TEAM = "Whole team"
 
 first, last = ui.setup(
     "Trends and comps",
-    "Week-by-week movement of any measure, and CA-vs-CA comparison — watch whether "
-    "coaching is changing behaviour.")
+    "Week-by-week movement of any measure, and CA-vs-CA comparison.")
 
 MEASURES = ["total_counted", "emails", "auto_email", "manual_email", "dials",
             "pursuits", "conversations", "linkedin", "inbound_replies",
