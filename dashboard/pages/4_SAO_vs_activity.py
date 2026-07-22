@@ -85,7 +85,7 @@ with c2:
     att["hit"] = att.attainment_pct.map(lambda v: "Target hit" if v >= 100 else "Below target")
     st.altair_chart(ui.themed(
         alt.Chart(att).mark_bar().encode(
-            x=alt.X("attainment_pct:Q", title="Attainment %"),
+            x=alt.X("attainment_pct:Q", title=None),
             y=alt.Y("ca:N", sort="-x", title=None),
             color=alt.Color("hit:N", legend=None,
                             scale=alt.Scale(domain=["Target hit", "Below target"],
