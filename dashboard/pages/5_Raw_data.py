@@ -1,6 +1,7 @@
 """Raw data — the live activity log behind every number (read-only)."""
 import re
 
+import pandas as pd
 import streamlit as st
 
 import db
@@ -11,20 +12,36 @@ first, last = ui.setup(
     "Raw data",
     "The live, read-only view of the activity database — one row per real activity. "
     "Every number on every other tab can be traced to rows here.")
+
+# A chart drill-through hands off here with its slice (ui.drill_card): land
+# pre-filtered to the exact window/CA/channel the clicked mark drew. Session
+# keys must be set BEFORE the widgets below are instantiated.
+pf = st.session_state.pop("raw_prefill", None)
+if pf:
+    st.session_state["win"] = "Custom"
+    st.session_state["win_a"] = max(pd.Timestamp(pf["start"]).date(), first)
+    st.session_state["win_b"] = min(pd.Timestamp(pf["end"]).date(), last)
+    st.session_state["raw_search"] = pf.get("search", "")
+
 start, end, label = ui.window_pills(first, last)
 
 reps = ["(all)"] + db.q(queries.REPS)["name"].tolist()
 channels = ["(all)"] + db.q(queries.CHANNELS)["channel"].tolist()
+if pf:   # only prefill values the selectboxes actually offer
+    if pf.get("rep") in reps:
+        st.session_state["raw_rep"] = pf["rep"]
+    if pf.get("channel") in channels:
+        st.session_state["raw_channel"] = pf["channel"]
 
 c1, c2, c3, c4 = st.columns([1.2, 1.2, 1.6, 1.2])
-rep = c1.selectbox("CA", reps)
-channel = c2.selectbox("Channel", channels,
+rep = c1.selectbox("CA", reps, key="raw_rep")
+channel = c2.selectbox("Channel", channels, key="raw_channel",
                        format_func=lambda c: ui.CHANNEL_LABELS.get(c, c))
 counted = c3.radio("Show", ["counted", "excluded", "all"], horizontal=True,
                    format_func={"counted": "Counted (in the numbers)",
                                 "excluded": "Not counted (kept for audit)",
                                 "all": "All rows"}.get)
-search = c4.text_input("Subject / account contains")
+search = c4.text_input("Subject / account contains", key="raw_search")
 
 _COUNTED_HELP = (
     "Nothing is ever deleted — every raw tool record lands in exactly one row here. "

@@ -65,12 +65,29 @@ tl = wk[["week", "week_start"] + trend_cols].melt(
     ["week", "week_start"], var_name="m", value_name="count")
 tl["measure"] = tl.m.map(ui.MEASURE_LABELS)
 order = [w for w in wk.sort_values("week_start").week.unique()]
-st.altair_chart(
+# click a dot -> peek at that week's rows for this measure (drill-through)
+ev = st.altair_chart(
     ui.trend_chart(tl, "count", "measure", order,
                    [ui.MEASURE_LABELS[c] for c in trend_cols],
-                   [ui.MEASURE_COLORS[c] for c in trend_cols], height=280),
-    use_container_width=True)
+                   [ui.MEASURE_COLORS[c] for c in trend_cols], height=280,
+                   pick=ui.pick_param(["week", "week_start", "m"])),
+    use_container_width=True, key="wk_pick", on_select="rerun")
+ui.centered_legend([(ui.MEASURE_LABELS[c], ui.MEASURE_COLORS[c]) for c in trend_cols])
 st.caption("Latest week is partial until Sunday.")
+picked = ui.read_pick(ev)
+if picked:
+    ws = ui.datum_date(picked["week_start"])
+    we = ws + pd.Timedelta(days=6)   # Timedelta subclasses timedelta: date in, date out
+    chans = ui.DRILL_CHANNELS[picked["m"]]
+    rows = db.q(queries.DRILL_ROWS,
+                (ws, we, rep, rep, chans, "(all)", "(all)",
+                 "all", "all", "all", "all"))
+    ui.drill_card(rows,
+                  "%s — %s · %s" % (rep, ui.MEASURE_LABELS[picked["m"]],
+                                    picked["week"]),   # week label = "Wk of 13 Jul"
+                  {"start": ws, "end": we, "rep": rep,
+                   "channel": chans[0] if len(chans) == 1 else "(all)"},
+                  key="wk_card")
 
 # --- account breakdown --------------------------------------------------------
 st.subheader("Which accounts the touchpoints went into")
@@ -94,7 +111,8 @@ CH_COL = {"auto_email": "#A7C957", "manual_email": "#6E8B3D", "calls": "#CC7A6F"
 top = acc_v.head(15)
 stk = top[["account_name"] + ch_cols].melt("account_name", var_name="m", value_name="count")
 stk["channel"] = stk.m.map(CH_LBL)
-st.altair_chart(ui.themed(
+# click a bar segment -> peek at the actual touches on that account
+picked = ui.drill_chart(
     alt.Chart(stk).mark_bar().encode(
         x=alt.X("count:Q", title="Touchpoints"),
         y=alt.Y("account_name:N", sort="-x", title=None,
@@ -103,8 +121,21 @@ st.altair_chart(ui.themed(
                         scale=alt.Scale(domain=list(CH_LBL.values()),
                                         range=[CH_COL[c] for c in ch_cols])),
         tooltip=["account_name", "channel", "count"],
-    ).properties(height=max(140, 24 * len(top)))),
-    use_container_width=True)
+    ).properties(height=max(140, 24 * len(top))),
+    key="acc_pick", fields=["account_name", "m"])
+if picked:
+    chans = ui.DRILL_CHANNELS[picked["m"]]
+    rows = db.q(queries.DRILL_ROWS,
+                (start, end, rep, rep, chans,
+                 picked["account_name"], picked["account_name"],
+                 "all", "all", "all", "all"))
+    ui.drill_card(rows,
+                  "%s — %s at %s · %s" % (rep, CH_LBL[picked["m"]],
+                                          picked["account_name"], label),
+                  {"start": start, "end": end, "rep": rep,
+                   "channel": chans[0] if len(chans) == 1 else "(all)",
+                   "search": picked["account_name"]},
+                  key="acc_card")
 
 if len(acc_v):
     acc_v["pct_of_touchpoints"] = (acc_v.touchpoints / total_tp * 100).round(1)

@@ -89,7 +89,8 @@ st.subheader("Channel mix per CA")
 mix_cols = ["auto_email", "manual_email", "dials", "linkedin", "other_outreach"]
 mix = sc[["ca_name"] + mix_cols].melt("ca_name", var_name="m", value_name="count")
 mix["channel"] = mix.m.map(ui.MEASURE_LABELS)
-st.altair_chart(ui.themed(
+# click a bar segment -> compact peek of the rows behind it (drill-through)
+picked = ui.drill_chart(
     alt.Chart(mix).mark_bar().encode(
         x=alt.X("count:Q", title="Counted outbound activities"),
         y=alt.Y("ca_name:N", sort="-x", title=None),
@@ -97,15 +98,26 @@ st.altair_chart(ui.themed(
                         scale=alt.Scale(domain=[ui.MEASURE_LABELS[c] for c in mix_cols],
                                         range=[ui.MEASURE_COLORS[c] for c in mix_cols])),
         tooltip=["ca_name", "channel", "count"],
-    ).properties(height=26 * n)),
-    use_container_width=True)
+    ).properties(height=26 * n),
+    key="mix_pick", fields=["ca_name", "m"])
+if picked:
+    chans = ui.DRILL_CHANNELS[picked["m"]]
+    rows = db.q(queries.DRILL_ROWS,
+                (start, end, picked["ca_name"], picked["ca_name"], chans,
+                 "(all)", "(all)", "all", "all", "all", "all"))
+    ui.drill_card(rows,
+                  "%s — %s · %s" % (picked["ca_name"],
+                                    ui.MEASURE_LABELS[picked["m"]], label),
+                  {"start": start, "end": end, "rep": picked["ca_name"],
+                   "channel": chans[0] if len(chans) == 1 else "(all)"},
+                  key="mix_card")
 
 # --- meetings split ---------------------------------------------------------
 st.subheader("Meetings booked — what happened to them")
 m_cols = ["meetings_held", "meetings_scheduled", "meetings_canceled", "meetings_unknown"]
 mm = sc[["ca_name"] + m_cols].melt("ca_name", var_name="status", value_name="count")
 mm["status"] = mm["status"].str.replace("meetings_", "")
-st.altair_chart(ui.themed(
+picked = ui.drill_chart(
     alt.Chart(mm).mark_bar().encode(
         x=alt.X("count:Q", title="Meetings"),
         y=alt.Y("ca_name:N", sort="-x", title=None),
@@ -113,18 +125,29 @@ st.altair_chart(ui.themed(
                         scale=alt.Scale(domain=["held", "scheduled", "canceled", "unknown"],
                                         range=["#A3BE8C", "#7DA0CA", "#CC7A6F", "#6B7280"])),
         tooltip=["ca_name", "status", "count"],
-    ).properties(height=26 * n)),
-    use_container_width=True)
+    ).properties(height=26 * n),
+    key="mtg_pick", fields=["ca_name", "status"])
+if picked:
+    o = ui.OUTCOME_PARAM[picked["status"]]
+    rows = db.q(queries.DRILL_ROWS,
+                (start, end, picked["ca_name"], picked["ca_name"], ["meeting"],
+                 "(all)", "(all)", o, o, o, o))
+    ui.drill_card(rows,
+                  "%s — meetings %s · %s" % (picked["ca_name"], picked["status"], label),
+                  {"start": start, "end": end, "rep": picked["ca_name"],
+                   "channel": "meeting"},
+                  key="mtg_card")
 st.caption("Unknown = no outcome logged. Never assume held.")
 
 # --- new conversations vs follow-ups (Dillon rule, migration 006) -------------
 st.subheader("Meetings booked — new conversations vs follow-ups")
 b_cols = ["meetings_new_stakeholder", "meetings_follow_up", "meetings_no_account"]
 bl = mb[["ca_name"] + b_cols].melt("ca_name", var_name="bucket", value_name="count")
-bl["bucket"] = bl.bucket.map({"meetings_new_stakeholder": "new stakeholder",
-                              "meetings_follow_up": "follow-up",
-                              "meetings_no_account": "no account matched"})
-st.altair_chart(ui.themed(
+BUCKET_LBL = {"meetings_new_stakeholder": "new stakeholder",
+              "meetings_follow_up": "follow-up",
+              "meetings_no_account": "no account matched"}
+bl["bucket"] = bl.bucket.map(BUCKET_LBL)
+picked = ui.drill_chart(
     alt.Chart(bl).mark_bar().encode(
         x=alt.X("count:Q", title="Meetings"),
         y=alt.Y("ca_name:N", sort="-x", title=None),
@@ -133,7 +156,16 @@ st.altair_chart(ui.themed(
                                                 "no account matched"],
                                         range=[ui.LIME, "#B48EAD", "#6B7280"])),
         tooltip=["ca_name", "bucket", "count"],
-    ).properties(height=26 * n)),
-    use_container_width=True)
+    ).properties(height=26 * n),
+    key="bkt_pick", fields=["ca_name", "bucket"])
+if picked:
+    bucket = {v: k.replace("meetings_", "") for k, v in BUCKET_LBL.items()}[picked["bucket"]]
+    rows = db.q(queries.DRILL_MEETING_ROWS,
+                (start, end, picked["ca_name"], picked["ca_name"], bucket))
+    ui.drill_card(rows,
+                  "%s — %s meetings · %s" % (picked["ca_name"], picked["bucket"], label),
+                  {"start": start, "end": end, "rep": picked["ca_name"],
+                   "channel": "meeting"},
+                  key="bkt_card")
 st.caption("New = first meeting with that account in a rolling 60 days. "
            "History starts Jul 6, so early weeks naturally skew new.")

@@ -51,6 +51,23 @@ refresh banner (from `ingestion_runs`, migration 005). Dark theme, two accents
 (greens = email, reds = phone, blues = LinkedIn, purple = meetings,
 amber = inbound) across all tables and charts.
 
+**Chart drill-through** (2026-07-22): clicking a bar segment or a trend dot on
+the activity-backed charts (Team overview's three bar charts, Per CA's weekly
+trend + account breakdown, Trends' weekly lines) opens a COMPACT peek card —
+up to 8 of the real `activity_flat` rows behind that mark plus the true total,
+never a full table. The card's button (or clicking a row in it) jumps to
+**Raw data pre-filtered to the same slice** for deeper digging. The card
+re-reads the mark's own filters (window / CA / channel set / meeting outcome
+or 60-day bucket, active CAs only) — pure display layer, nothing recomputed;
+card totals were verified equal to the clicked mark's value. Measures with no
+row-level equivalent (coverage %, accounts touched, SAO/pipeline from Ray's
+tracker) say so instead of dead-clicking. Implementation notes: Streamlit
+`on_select` cannot attach to layered charts, so the two weekly trend charts
+render single-view with a centered legend below (the line-end name labels
+remain on non-interactive trends); week dates clicked in the browser arrive at
+LOCAL midnight — `ui.datum_date` rounds to the nearest day or every window
+shifts a day east of UTC.
+
 1. **Team overview** (landing) — every CA side by side: KPI cards with
    sub-numbers (auto/manual, conversations, meetings split), family-tinted
    scorecard table, channel mix, meetings **always split**

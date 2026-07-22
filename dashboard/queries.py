@@ -117,6 +117,53 @@ MEETINGS_RH = """
 # reconciled exactly against rep_scorecard on build day (decisions.md).
 MEETING_BREAKDOWN = "select * from rep_meeting_breakdown(%s, %s)"
 
+# --- chart drill-through (click a bar/dot -> peek at the underlying rows) ----
+# Same source of truth as everything else (activity_flat, counted rows only),
+# filtered to exactly the slice the clicked mark drew: window, CA, channel set,
+# optional account, optional meeting-outcome bucket (the outcome vocabulary
+# mirrors rep_scorecard/002: held=COMPLETED, canceled=CANCELED,
+# scheduled=SCHEDULED/RESCHEDULED, unknown=anything else). `total` rides along
+# via a window count so the card can say "latest 8 of 47" in one round trip.
+# Params: start, end, rep, rep, channels[], account, account, o, o, o, o
+DRILL_ROWS = """
+    select activity_date, ca_name, channel, account_name, subject,
+           contact_email, occurred_at, count(*) over () as total
+    from activity_flat
+    where counts
+      and activity_date between %s and %s
+      -- active CAs only, like every chart (a departed CA's rows would make
+      -- the card total disagree with the clicked mark)
+      and ca_name in (select name from dim_ca where is_active)
+      and (%s = '(all)' or ca_name = %s)
+      and channel = any(%s)
+      and (%s = '(all)' or coalesce(account_name, '(no account matched)') = %s)
+      and (%s = 'all'
+           or (%s = 'unknown' and coalesce(outcome, '?')
+               not in ('COMPLETED','CANCELED','SCHEDULED','RESCHEDULED'))
+           or (%s = 'scheduled' and coalesce(outcome, '?')
+               in ('SCHEDULED','RESCHEDULED'))
+           or coalesce(outcome, '?') = %s)
+    order by occurred_at desc
+    limit 8
+"""
+
+# Same peek for the new-stakeholder/follow-up/no-account meeting buckets —
+# rides the migration-006 flags view (already reader-approved), nothing new.
+# Params: start, end, rep, rep, bucket
+DRILL_MEETING_ROWS = """
+    select af.activity_date, af.ca_name, af.channel, af.account_name,
+           af.subject, af.contact_email, af.occurred_at,
+           count(*) over () as total
+    from activity_flat af
+    join meeting_new_stakeholder_flags f on f.activity_id = af.activity_id
+    where af.activity_date between %s and %s
+      and af.ca_name in (select name from dim_ca where is_active)
+      and (%s = '(all)' or af.ca_name = %s)
+      and f.bucket = %s
+    order by af.occurred_at desc
+    limit 8
+"""
+
 # the same split per calendar week / month (migration 007 — wraps the function,
 # so definitions can't drift; joins the 004 trend views on week/month + ca).
 # Weekly gets the same not-yet-started-week filter as WEEKLY_TREND.

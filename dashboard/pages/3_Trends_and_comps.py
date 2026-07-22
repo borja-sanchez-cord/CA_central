@@ -62,10 +62,44 @@ if frames:
                            "#5E81AC", "#A65A50", "#A6C0E0", "#BF6A60", "#8FB04E",
                            "#B77CFF", "#4E9F8A", "#D08BC0", "#8A93A5", "#D9C06B",
                            "#6ACAE0", "#A7C957"]
-    st.altair_chart(
-        ui.trend_chart(d, measure, "who", order, who_domain, palette[:len(who_domain)], height=360),
-        use_container_width=True)
-    st.caption("Whole weeks only (Mon-Sun) — the latest week is partial until Sunday.")
+    # drill-through: dots are clickable when the measure maps to raw rows
+    # (channel measures + the 60-day meeting buckets; ratios/distinct-counts
+    # like coverage % or accounts touched have no row-level equivalent)
+    _bucket = {"meetings_new_stakeholder": "new_stakeholder",
+               "meetings_follow_up": "follow_up"}.get(measure)
+    drillable = measure in ui.DRILL_CHANNELS or _bucket is not None
+    # pick always attached so every measure gets the same single-view look
+    # (names in the legend below); only drillable measures listen for clicks
+    ev = st.altair_chart(
+        ui.trend_chart(d, measure, "who", order, who_domain,
+                       palette[:len(who_domain)], height=360,
+                       pick=ui.pick_param(["week", "week_start", "who"])),
+        use_container_width=True, key="tr_pick",
+        on_select="rerun" if drillable else "ignore")
+    ui.centered_legend(list(zip(who_domain, palette[:len(who_domain)])))
+    st.caption("Whole weeks only (Mon-Sun) — the latest week is partial until Sunday."
+               + ("" if drillable else " Click-through isn't available for this measure "
+                  "(it's a ratio or a distinct count, not a set of rows)."))
+    picked = ui.read_pick(ev) if drillable else None
+    if picked:
+        ws = ui.datum_date(picked["week_start"])
+        we = ws + pd.Timedelta(days=6)
+        who = picked["who"]
+        rep_f = "(all)" if who == TEAM else who
+        if _bucket:
+            rows = db.q(queries.DRILL_MEETING_ROWS, (ws, we, rep_f, rep_f, _bucket))
+            chan = "meeting"
+        else:
+            chans = ui.DRILL_CHANNELS[measure]
+            rows = db.q(queries.DRILL_ROWS,
+                        (ws, we, rep_f, rep_f, chans, "(all)", "(all)",
+                         "all", "all", "all", "all"))
+            chan = chans[0] if len(chans) == 1 else "(all)"
+        ui.drill_card(rows,
+                      "%s — %s · %s" % (who, ui.MEASURE_LABELS.get(measure, measure),
+                                        picked["week"]),   # week label = "Wk of 13 Jul"
+                      {"start": ws, "end": we, "rep": rep_f, "channel": chan},
+                      key="tr_card")
 
 with st.expander("Table — weeks × CAs"):
     pv = wk.pivot_table(index="ca_name", columns="week", values=measure)

@@ -220,9 +220,14 @@ def window_pills(first, last, key="win"):
         m = (m - dt.timedelta(days=1)).replace(day=1)
     month_lbls = [lbl for lbl, _ in months]
 
+    # seed the default through session state, never the widget arg — a drill
+    # handoff pre-sets this key, and mixing both triggers Streamlit's
+    # "default value + Session State API" warning
+    if key not in st.session_state:
+        st.session_state[key] = "Last 7 days"
     choice = st.pills("Time window",
                       ["Last 7 days", "Last 30 days"] + month_lbls + ["All time", "Custom"],
-                      default="Last 7 days", key=key, label_visibility="collapsed")
+                      key=key, label_visibility="collapsed")
     choice = choice or "Last 7 days"
     if choice == "Last 7 days":
         return max(last - dt.timedelta(days=6), first), last, choice
@@ -238,8 +243,10 @@ def window_pills(first, last, key="win"):
                 st.caption("%s is partial in our data — covered from %s." % (lbl, first))
             return start, end, lbl
     c1, c2, _ = st.columns([1, 1, 3])
-    start = c1.date_input("From", first, min_value=first, max_value=last, key=key + "_a")
-    end = c2.date_input("To", last, min_value=first, max_value=last, key=key + "_b")
+    st.session_state.setdefault(key + "_a", first)   # same seed-via-session
+    st.session_state.setdefault(key + "_b", last)    # pattern as the pills
+    start = c1.date_input("From", min_value=first, max_value=last, key=key + "_a")
+    end = c2.date_input("To", min_value=first, max_value=last, key=key + "_b")
     if start > end:
         st.info("Pick a start date on or before the end date.")
         st.stop()
@@ -351,9 +358,110 @@ def family_tints(columns, families, alpha=0.09):
     return apply
 
 
-def trend_chart(df, value_col, series_col, order, domain, rng, height=320):
-    """Line chart with the series name attached at its last dot (no side legend).
-    df must carry 'week' (ordinal label) and 'week_start' (date)."""
+# ---------------------------------------------------------------- drill-through
+# Click a bar/dot -> a compact peek card of the real rows behind it (display
+# layer only; the card re-reads activity_flat with the mark's own filters —
+# nothing is recomputed). From the card you can jump to Raw data pre-filtered.
+
+# chart measure/column -> the activity_flat channel set it draws (the full
+# list mirrors the model's channel vocabulary guard)
+ALL_CHANNELS = ["auto_email", "manual_email", "call", "li_connect", "li_message",
+                "li_other", "inbound_email", "meeting", "whatsapp", "sms", "other"]
+DRILL_CHANNELS = {
+    "total_counted": ALL_CHANNELS,
+    "emails": ["auto_email", "manual_email"],
+    "auto_email": ["auto_email"], "manual_email": ["manual_email"],
+    "dials": ["call"], "calls": ["call"],
+    "linkedin": ["li_connect", "li_message", "li_other"],
+    "inbound_replies": ["inbound_email"],
+    "meetings_booked": ["meeting"],
+    "other_outreach": ["whatsapp", "sms", "other"],
+}
+# meetings-outcome bar -> the outcome selector DRILL_ROWS understands
+OUTCOME_PARAM = {"held": "COMPLETED", "canceled": "CANCELED",
+                 "scheduled": "scheduled", "unknown": "unknown"}
+
+
+def datum_date(v):
+    """A date field coming back from a Vega click is ms-epoch or ISO text —
+    and the browser stamps it at LOCAL midnight, which lands a few hours off
+    UTC midnight. Round to the nearest day or every drill window shifts by
+    one day for viewers east of UTC (caught live: 5,978 vs the mark's 5,986)."""
+    import pandas as pd
+    ts = pd.to_datetime(v, unit="ms") if isinstance(v, (int, float)) else pd.to_datetime(v)
+    return ts.round("D").date()
+
+
+def pick_param(fields):
+    """The click-selection every drillable chart carries (empty=False so a
+    click on blank canvas selects nothing rather than everything)."""
+    import altair as alt
+    return alt.selection_point(name="pick", fields=fields, on="click", empty=False)
+
+
+def read_pick(event):
+    """The clicked datum (dict of the pick fields) from st.altair_chart's
+    on_select return value, or None."""
+    try:
+        pts = event.selection.pick
+    except Exception:
+        return None
+    return dict(pts[0]) if pts else None
+
+
+def drill_chart(chart, key, fields):
+    """Render a (bar) chart click-selectable and return the clicked datum."""
+    return read_pick(st.altair_chart(themed(chart.add_params(pick_param(fields))),
+                                     use_container_width=True, key=key,
+                                     on_select="rerun"))
+
+
+def drill_card(df, header, prefill, key):
+    """The compact peek: up to 8 rows + true total, never a full table.
+    Deeper digging hands off to Raw data — the button (or clicking a row)
+    jumps there pre-filtered to this exact slice."""
+    with st.container(border=True):
+        total = int(df.total.iloc[0]) if len(df) else 0
+        st.markdown("**%s** — %d %s%s" % (
+            header, total, "activity" if total == 1 else "activities",
+            " · latest %d below" % len(df) if total > len(df) else ""))
+        if not len(df):
+            st.caption("No underlying rows in this slice.")
+            return
+        disp = df[["activity_date", "channel", "account_name", "subject",
+                   "contact_email"]].copy()
+        disp["channel"] = disp.channel.map(lambda c: CHANNEL_LABELS.get(c, c))
+        disp = disp.fillna("—")   # None cells read as data; a dash reads as empty
+        ev = st.dataframe(
+            disp, hide_index=True, use_container_width=True,
+            height=min(38 + 35 * len(disp), 320),
+            on_select="rerun", selection_mode="single-row", key=key + "_rows",
+            column_config={
+                "activity_date": st.column_config.DateColumn("Date"),
+                "channel": "Channel", "account_name": "Account",
+                "subject": "Subject", "contact_email": "Contact"})
+        picked_rows = ev.selection.rows if ev and ev.selection else []
+        go = st.button("Open in Raw data →", key=key + "_go",
+                       help="The full audit view, pre-filtered to this slice.")
+        if go or picked_rows:
+            if picked_rows:   # a clicked activity narrows the jump to itself
+                r = df.iloc[picked_rows[0]]
+                prefill = dict(prefill,
+                               search=(r.subject or r.account_name or ""))
+            # drop the sticky row-selection state, else coming BACK to this
+            # page would immediately re-trigger the jump (selection persists)
+            st.session_state.pop(key + "_rows", None)
+            st.session_state["raw_prefill"] = prefill
+            st.switch_page("pages/5_Raw_data.py")
+
+
+def trend_chart(df, value_col, series_col, order, domain, rng, height=320,
+                pick=None):
+    """Line chart. Default: the series name attached at its last dot (no side
+    legend) — a line layer + a text layer. With pick (a pick_param()): dots are
+    click-selectable, and Streamlit does NOT support selections on layered
+    charts, so the text layer is dropped — SINGLE view, param on the line —
+    and the page draws ui.centered_legend() below instead."""
     import altair as alt
     scale = alt.Scale(domain=domain, range=rng)
     base = alt.Chart(df)
@@ -365,6 +473,10 @@ def trend_chart(df, value_col, series_col, order, domain, rng, height=320):
         y=alt.Y("%s:Q" % value_col, title=None),
         color=alt.Color("%s:N" % series_col, scale=scale, legend=None),
         tooltip=["week", series_col, value_col])
+    if pick is not None:
+        return themed(line.add_params(pick).properties(
+            height=height,
+            padding={"left": 5, "right": 20, "top": 5, "bottom": 30}))
     last = df[df.week_start == df.week_start.max()]
     labels = alt.Chart(last).mark_text(align="left", dx=8, fontSize=11, fontWeight=600).encode(
         x=alt.X("week:O", sort=order),
