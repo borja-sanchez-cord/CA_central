@@ -36,6 +36,7 @@ verified the activity data; the dashboard must never put that at risk:
 | `dim_ca`, `dim_account`, `dim_contact` | Names/tiers for display. |
 | `rep_meeting_breakdown(start, end)` + `_alltime`, `meeting_new_stakeholder_flags`, `meeting_account_map` | NEW (migration 006, Dillon fix #22): each counted meeting bucketed new-stakeholder / follow-up / no-account (buckets sum to booked). Sits BESIDE `meetings_booked`, never replaces it. The raw attendee table stays closed to the reader. |
 | `rep_meeting_breakdown_weekly` / `rep_meeting_breakdown_monthly` | NEW (migration 007): the meeting split evaluated per calendar week / month — *wraps* `rep_meeting_breakdown()` exactly like the 004 trend views wrap `rep_scorecard()`, and joins them on (week/month, ca). |
+| `account_deal_status`, `deal_stage_class` | NEW (migration 008, Dillon fix #24+#25): per-account deal flags — customer / open deal (with age) / recently closed-lost / recently churned — joined onto the neglect list for DISPLAY, so those accounts get a **label instead of the red flag**. Coverage numbers never change; the three raw deal tables stay closed to the reader. |
 
 Anything else (raw tables, activity fact table) is invisible to the dashboard
 login. Exposing a new object to the dashboard is a deliberate act (an explicit
@@ -62,7 +63,11 @@ amber = inbound) across all tables and charts.
    touched at it.
 3. **Account coverage** — CA × account heat map (the team's most-touched
    accounts), owned-account coverage table, neglected top-tier accounts
-   grouped per CA (counts in pills, never titles).
+   grouped per CA (counts in pills, never titles). Untouched accounts that
+   are customers / mid-deal / recently lost or churned show a **deal-status
+   label instead of the red flag** (migration 008, Dillon #24+#25); the red
+   pill and chart count only the truly neglected remainder, and open deals
+   show their age so stale ones stay auditable.
 4. **Trends** — weekly dot-first lines for any measure, now incl.
    **New-stakeholder / Follow-up meetings** (migration 007); explicit "Whole
    team" entry plus any CAs for comparison. The "are coaching changes

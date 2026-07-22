@@ -69,6 +69,18 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: python ingestion/ingest_meeting_contacts.py
 
+      # Deals mirror (Dillon fix #24+#25): full re-read of ALL deals + their
+      # company links + the pipeline/stage schema (~61 paged calls — minutes),
+      # so stage moves and close dates self-heal. Feeds ONLY migration 008's
+      # neglect labels; nothing in the verified model reads it. Independent:
+      # a failure here never blocks identities/model.
+      - name: Sync deals
+        if: always()
+        env:
+          HUBSPOT_PRIVATE_APP_TOKEN: ${{ secrets.HUBSPOT_PRIVATE_APP_TOKEN }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: python ingestion/ingest_deals.py
+
       # Phase 2: rebuild the resolved identities from the fresh raw layer.
       # Runs even if ingestion partially failed (yesterday's raw data still
       # deserves fresh identities); its own guard rails abort on a bad roster.

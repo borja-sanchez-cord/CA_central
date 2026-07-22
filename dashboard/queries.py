@@ -48,10 +48,19 @@ ACCOUNT_CONTACTS = """
 """
 
 OWNED_COVERAGE = """
-    select owner_name, account_name, icp_tier, vertical, owner_touches,
+    select owner_name, account_id, account_name, icp_tier, vertical, owner_touches,
            owner_last_touch, team_touches, team_last_touch, team_reps
     from owned_account_coverage(%s, %s)
     order by owner_name, (icp_tier is null), icp_tier, team_touches, account_name
+"""
+
+# Deal-derived neglect shields (migration 008, Dillon fix #24+#25). One row per
+# account that has deals; joined onto OWNED_COVERAGE display-side — the
+# coverage numbers themselves are never recomputed.
+ACCOUNT_DEAL_STATUS = """
+    select account_id, is_customer, has_open_deal, open_deals,
+           oldest_open_deal_days, last_churned_date, last_lost_date, shield
+    from account_deal_status
 """
 
 AUDIT_ROWS = """

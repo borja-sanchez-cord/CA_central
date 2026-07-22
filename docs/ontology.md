@@ -80,6 +80,7 @@ Computed per time window by the `rep_account_drilldown()` / `account_contact_dri
 | **People touched** | Distinct people the rep reached at that account. | |
 | **Owner touches vs team touches** | On the neglect view: activity on an owned account by its owner, vs by any CA. "Owner 0, team 12" ≠ "0 and 0". | |
 | **Neglect view** | Every CA-owned account **including zeros** — an owned account nobody touched is still a row. | Touch counts are a floor (missing-company gap): zero means "no *recorded* touch". |
+| **Deal status / neglect label** | From HubSpot deals (migration 008, Dillon #24+#25). An untouched top-tier account is **labelled instead of flagged** when it is a **Customer** (won deal, not churned since — never flagged), has an **Open deal** (never flagged while open; the deal's *age* is shown so a stale deal nobody closed stays auditable), was **Closed lost** <60 days ago, or **Churned** (incl. lost renewals) <9 months ago. | Labels, never hiding — the account stays in the list. Won/lost/open comes from HubSpot's own stage metadata, not hardcoded stage ids. A lost deal with no close date runs no clock (stays flaggable). Deal-closing hygiene is a process dependency (Ray). |
 
 ## SAO measures (monthly — from Ray's tracker, Phase 7)
 

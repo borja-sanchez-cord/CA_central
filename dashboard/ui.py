@@ -91,6 +91,7 @@ DEFS = {
     "saos": "SAOs achieved (from Ray's Global CA Performance Tracker, monthly).",
     "sao_target": "That rep's monthly SAO target (Ray's tracker).",
     "saos_outbound": "SAOs minus inbound minus event — the ones outbound activity can claim.",
+    "neglect_status": "From HubSpot deals (nightly). Customer = won deal, not churned since — never flagged. Open deal = mid-deal, never flagged while open (age shown so stale deals stay auditable). Lost = closed-lost, rests 60 days. Churned (incl. lost renewals) rests 9 months. Neglected = none of those apply.",
 }
 
 _CSS = """

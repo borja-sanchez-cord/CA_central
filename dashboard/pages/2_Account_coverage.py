@@ -60,6 +60,10 @@ st.caption("Depth vs spread: many accounts at 1-9 touchpoints = wide and shallow
 st.subheader("Owned accounts")
 st.caption("How much of what each CA owns are they actually working?")
 cov = db.q(queries.OWNED_COVERAGE, (start, end))
+# deal-derived labels (migration 008, Dillon #24+#25): joined for DISPLAY only —
+# none of the coverage numbers change, an account only ever gains a label.
+ds = db.q(queries.ACCOUNT_DEAL_STATUS)
+cov = cov.merge(ds, on="account_id", how="left")
 t01 = cov[(cov.icp_tier.isin(["Tier 0", "Tier 1"])) & (cov.team_touches == 0)]
 
 per_rep = cov.groupby("owner_name").agg(
@@ -82,37 +86,89 @@ st.dataframe(
     })
 
 # --- neglected top-tier accounts -------------------------------------------------
+# Zero-touch accounts that are customers, mid-deal, or recently lost/churned
+# are NOT neglect (Dillon rules, Jul 2026) — they get a label and stay in the
+# list; only the unshielded remainder is flagged red and charted.
 st.subheader("Neglected top-tier accounts")
-ui.pill("<b>%d</b> owned top-tier accounts, zero recorded touches by anyone" % len(t01), "red")
-st.caption("Top tier = HubSpot Tier 0/1 — the validated tier field, never the automated one.")
+
+
+def _status(r):
+    if r.shield == "customer":
+        return "Customer"
+    if r.shield == "open_deal":
+        # deal AGE surfaced on purpose: a zombie deal nobody closed would
+        # otherwise hide real neglect forever (Dillon's caveat, Ray owns
+        # the process fix — decisions.md 2026-07-22)
+        return ("Open deal (%dd old)" % r.oldest_open_deal_days
+                if pd.notna(r.oldest_open_deal_days) else "Open deal")
+    if r.shield == "churned_recently":
+        return "Churned %s" % pd.Timestamp(r.last_churned_date).strftime("%b %Y")
+    if r.shield == "lost_recently":
+        return "Lost %s" % pd.Timestamp(r.last_lost_date).strftime("%d %b")
+    return "Neglected"
+
+
+t01 = t01.copy()
+# guard: .apply(axis=1) on an EMPTY frame returns a DataFrame, not a Series
+t01["status"] = t01.apply(_status, axis=1) if len(t01) else ""
+negl = t01[t01.shield.isna()]
+ui.pill("<b>%d</b> owned top-tier accounts, zero recorded touches by anyone" % len(negl), "red")
+st.caption("Top tier = HubSpot Tier 0/1 — the validated tier field, never the automated one. "
+           "%d more untouched top-tier accounts are labelled, not flagged." % (len(t01) - len(negl)),
+           help="Deal-aware rules (Dillon, Jul 2026): a customer — a won deal not "
+                "churned since — is never flagged; an account mid-deal is never "
+                "flagged while the deal is open (the deal's age is shown, so a "
+                "stale deal nobody closed stays auditable); closed-lost rests 60 "
+                "days; churned or lost-renewal rests 9 months. Labels come from "
+                "HubSpot deals, synced nightly.")
 if len(t01):
-    counts = (t01.groupby(["owner_name", "icp_tier"]).size()
-                 .reset_index(name="n"))
+    counts = (negl.groupby(["owner_name", "icp_tier"]).size()
+                  .reset_index(name="n"))
     owners = (t01.groupby("owner_name").size()
                  .sort_values(ascending=False).index.tolist())
     bar_col, list_col = st.columns([1.3, 1.7])
     with bar_col:
-        st.altair_chart(ui.themed(
-            alt.Chart(counts).mark_bar().encode(
-                x=alt.X("n:Q", title="Accounts"),
-                y=alt.Y("owner_name:N", sort=owners, title=None),
-                color=alt.Color("icp_tier:N", title=None,
-                                scale=alt.Scale(domain=["Tier 0", "Tier 1"],
-                                                range=["#BF616A", "#D8A0A6"])),
-                tooltip=["owner_name", "icp_tier", "n"],
-            ).properties(height=26 * len(owners))),
-            use_container_width=True)
+        if len(negl):
+            n_owners = (negl.groupby("owner_name").size()
+                            .sort_values(ascending=False).index.tolist())
+            st.altair_chart(ui.themed(
+                alt.Chart(counts).mark_bar().encode(
+                    x=alt.X("n:Q", title="Accounts"),
+                    y=alt.Y("owner_name:N", sort=n_owners, title=None),
+                    color=alt.Color("icp_tier:N", title=None,
+                                    scale=alt.Scale(domain=["Tier 0", "Tier 1"],
+                                                    range=["#BF616A", "#D8A0A6"])),
+                    tooltip=["owner_name", "icp_tier", "n"],
+                ).properties(height=26 * len(n_owners))),
+                use_container_width=True)
+        else:
+            st.success("Every untouched top-tier account has a deal-status label.")
     with list_col:
         who = st.selectbox("List one CA's accounts", owners)
         st.dataframe(
-            t01[t01.owner_name == who][["account_name", "icp_tier"]]
-                .sort_values(["icp_tier", "account_name"]),
+            t01[t01.owner_name == who][["account_name", "icp_tier", "status"]]
+                .sort_values(["status", "icp_tier", "account_name"],
+                             key=lambda s: s.map(lambda v: " " + v
+                                                 if v == "Neglected" else str(v))
+                             if s.name == "status" else s),
             hide_index=True, use_container_width=True,
             column_config={"account_name": "Account",
-                           "icp_tier": st.column_config.TextColumn("Tier (validated)")})
+                           "icp_tier": st.column_config.TextColumn("Tier (validated)"),
+                           "status": st.column_config.TextColumn(
+                               "Status", help=ui.DEFS["neglect_status"])})
 else:
     st.success("None in this window.")
 
 with st.expander("Every owned account (incl. zeros) — owner vs team touches"):
     st.caption("“Owner 0, team 12” is colleagues working your account — not neglect.")
-    st.dataframe(cov, hide_index=True, use_container_width=True)
+    full = cov.copy()
+    full["deal_status"] = full.shield.map({
+        "customer": "Customer", "open_deal": "Open deal",
+        "churned_recently": "Churned recently", "lost_recently": "Lost recently"})
+    st.dataframe(
+        full[["owner_name", "account_name", "icp_tier", "vertical", "deal_status",
+              "owner_touches", "owner_last_touch", "team_touches",
+              "team_last_touch", "team_reps"]],
+        hide_index=True, use_container_width=True,
+        column_config={"deal_status": st.column_config.TextColumn(
+            "Deal status", help=ui.DEFS["neglect_status"])})
