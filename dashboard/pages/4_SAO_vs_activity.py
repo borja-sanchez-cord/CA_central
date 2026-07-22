@@ -13,6 +13,7 @@ first, last = ui.setup(
 
 ms = db.q(queries.MONTHLY_SCORECARD)
 sao = db.q(queries.SAO_MONTHLY)
+mbm = db.q(queries.MEETING_BREAKDOWN_MONTHLY)  # new/follow-up/no-account per month
 
 c1, _ = st.columns([1, 3])
 months = sorted(ms.month_start.unique())
@@ -31,84 +32,115 @@ ui.pill("Directional only: an SAO this month usually comes from <b>earlier</b> o
 
 m_act = ms[ms.month_start == month]
 m_sao = sao[sao.month == month]
+m_mb = mbm[mbm.month_start == month][
+    ["ca_name", "meetings_new_stakeholder", "meetings_follow_up", "meetings_no_account"]]
 j = m_act.merge(m_sao, left_on="ca_name", right_on="rep_name", how="left")
+j = j.merge(m_mb, on="ca_name", how="left")  # display-only join of approved surfaces
 j["saos_outbound"] = j.saos - j.saos_inbound.fillna(0) - j.saos_event.fillna(0)
 j["attainment_pct"] = (j.saos / j.sao_target * 100).round(0)
 j["ramping"] = j.is_ramping.fillna(False)
-j["ca"] = j.ca_name + j.ramping.map(lambda x: " *" if x else "")
+j["ca"] = j.ca_name + j.ramping.map(lambda x: " *" if x else "")   # charts: marker inline
+j["ramp"] = j.ramping.map(lambda x: "*" if x else "")              # table: its own red column
 
-show = j[["ca", "total_counted", "emails", "dials", "conversations", "linkedin",
-          "meetings_booked", "saos", "sao_target", "attainment_pct",
-          "saos_inbound", "saos_event", "saos_outbound", "pipeline_usd"]].copy()
+show = j[["ca_name", "ramp", "total_counted", "emails", "dials", "conversations", "linkedin",
+          "meetings_booked", "meetings_new_stakeholder", "saos", "sao_target",
+          "attainment_pct", "saos_inbound", "saos_event", "saos_outbound",
+          "pipeline_usd"]].copy()
 for c in ["total_counted", "emails", "dials", "conversations", "linkedin",
-          "meetings_booked", "saos", "sao_target", "saos_inbound", "saos_event",
-          "saos_outbound"]:
-    show[c] = show[c].round().astype("Int64")   # counts: no decimals
+          "meetings_booked", "meetings_new_stakeholder", "saos", "sao_target",
+          "saos_inbound", "saos_event", "saos_outbound", "pipeline_usd"]:
+    show[c] = show[c].round().astype("Int64")   # counts/$: whole numbers, no decimals
 ACT = "#8A55F7"   # activity family: purple tint
 OUT = "#B3E249"   # results family: lime tint
 FAMS = {"total_counted": ACT, "emails": ACT, "dials": ACT, "conversations": ACT,
-        "linkedin": ACT, "meetings_booked": ACT,
+        "linkedin": ACT, "meetings_booked": ACT, "meetings_new_stakeholder": ACT,
         "saos": OUT, "sao_target": OUT, "attainment_pct": OUT,
         "saos_inbound": OUT, "saos_event": OUT, "saos_outbound": OUT,
         "pipeline_usd": OUT}
+# family tints on the value columns, plus a red ramping marker kept in its OWN
+# narrow column (the cell holds only "*", so ONLY the asterisk is red — the CA
+# name stays default). Partial-character colouring isn't possible inside a
+# single st.dataframe cell, so the marker lives beside the name, not in it.
 styled = (show.sort_values("saos", ascending=False)
-              .style.apply(ui.family_tints(show.columns, FAMS), axis=None))
+              .style.apply(ui.family_tints(show.columns, FAMS), axis=None)
+              .map(lambda v: "color: %s; font-weight: 700" % ui.RAMP_RED
+                             if v == "*" else "", subset=["ramp"]))
 st.dataframe(
     styled, hide_index=True, use_container_width=True,
     column_config={
-        "ca": st.column_config.TextColumn("CA", pinned=True,
-                                          help="* = ramping (reduced target)"),
+        "ca_name": st.column_config.TextColumn("CA", pinned=True),
+        "ramp": st.column_config.TextColumn("", width="small",
+                                            help="* = ramping (reduced target)"),
         "total_counted": st.column_config.NumberColumn("Activities", help=ui.DEFS["total_counted"]),
         "emails": "Emails", "dials": "Dials", "conversations": "Convos",
         "linkedin": "LinkedIn",
         "meetings_booked": st.column_config.NumberColumn("Meetings booked",
                                                          help=ui.DEFS["meetings_booked"]),
+        "meetings_new_stakeholder": st.column_config.NumberColumn(
+            "New meetings", help=ui.DEFS["meetings_new_stakeholder"]),
         "saos": st.column_config.NumberColumn("SAOs", help=ui.DEFS["saos"]),
         "sao_target": st.column_config.NumberColumn("Target", help=ui.DEFS["sao_target"]),
         "attainment_pct": st.column_config.NumberColumn("Attainment", format="%.0f%%"),
         "saos_inbound": "Inbound SAO", "saos_event": "Event SAO",
         "saos_outbound": st.column_config.NumberColumn("Outbound SAO",
                                                        help=ui.DEFS["saos_outbound"]),
-        "pipeline_usd": st.column_config.NumberColumn("Pipeline $", format="$%d"),
+        # "localized" groups thousands with commas and (on an int column) shows
+        # no decimals; the $ lives in the header (printf "$%,d" is NOT honored —
+        # Streamlit's number format has no comma flag, verified live 2026-07-21).
+        "pipeline_usd": st.column_config.NumberColumn("Pipeline $", format="localized"),
     })
 st.caption("Purple tint = activity (our data) | lime tint = results (Ray's tracker). "
-           "* = ramping.")
+           ":red[\\*] = ramping (reduced target).")
 
 # --- effort vs results, side by side -------------------------------------------
-st.subheader("Meetings booked vs SAOs, per CA")
-pair = j.dropna(subset=["saos"])[["ca", "meetings_booked", "saos"]].melt(
+# We compare NET NEW meetings (first meeting with an account in 60 days) to
+# SAOs, NOT total booked — a follow-up meeting shouldn't count toward the
+# meeting->SAO ratio (it would flatter reps whose meetings churn). Follow-up
+# and no-account detail lives in the table above and on Team overview.
+st.subheader("New meetings vs SAOs, per CA")
+pair = j.dropna(subset=["saos"])[["ca", "meetings_new_stakeholder", "saos"]].melt(
     "ca", var_name="what", value_name="n")
-pair["what"] = pair.what.map({"meetings_booked": "Meetings booked", "saos": "SAOs"})
+pair["what"] = pair.what.map({"meetings_new_stakeholder": "New meetings", "saos": "SAOs"})
 sort_order = j.dropna(subset=["saos"]).sort_values("saos", ascending=False).ca.tolist()
-c1, c2 = st.columns(2)
+h = 26 * len(sort_order) + 60
+c1, c2 = st.columns(2, gap="small")
 with c1:
     st.altair_chart(ui.themed(
         alt.Chart(pair).mark_bar().encode(
             y=alt.Y("ca:N", sort=sort_order, title=None),
             x=alt.X("n:Q", title=None),
             yOffset=alt.YOffset("what:N"),
-            color=alt.Color("what:N", title=None,
-                            scale=alt.Scale(domain=["Meetings booked", "SAOs"],
+            # legend at the bottom so it doesn't eat the gap between the two charts
+            color=alt.Color("what:N", legend=alt.Legend(orient="bottom", title=None),
+                            scale=alt.Scale(domain=["New meetings", "SAOs"],
                                             range=[ui.PURPLE, ui.LIME])),
             tooltip=["ca", "what", "n"],
-        ).properties(height=26 * len(sort_order) * 2 // 2 + 60)),
+        ).properties(height=h)),
         use_container_width=True)
-    st.caption("Big purple, no lime = meetings that didn't convert yet (or the lag).")
+    st.caption("New meetings vs the SAOs they'll eventually produce (SAOs lag outreach).")
 with c2:
+    # deliberately NOT purple/lime — those mean new-meetings/SAOs on the left
+    # chart; reusing them here (where the split is below-target / target-hit)
+    # would read as the same thing. Own scale: light red below, strong red hit.
+    # Encoded as a CATEGORY (not raw alt.value) so Altair renders a legend.
+    RED_HIT, RED_MISS = "#C0554B", "#E3B0A8"
+    att = j.dropna(subset=["attainment_pct"]).copy()
+    att["hit"] = att.attainment_pct.map(lambda v: "Target hit" if v >= 100 else "Below target")
     st.altair_chart(ui.themed(
-        alt.Chart(j.dropna(subset=["attainment_pct"])).mark_bar().encode(
+        alt.Chart(att).mark_bar().encode(
             x=alt.X("attainment_pct:Q", title="SAO target attainment %"),
             y=alt.Y("ca:N", sort="-x", title=None),
-            color=alt.condition("datum.attainment_pct >= 100",
-                                alt.value(ui.LIME), alt.value(ui.PURPLE)),
+            color=alt.Color("hit:N", legend=alt.Legend(orient="bottom", title=None),
+                            scale=alt.Scale(domain=["Target hit", "Below target"],
+                                            range=[RED_HIT, RED_MISS])),
             tooltip=["ca", "saos", "sao_target", "attainment_pct"],
-        ).properties(height=26 * len(sort_order) + 60)),
+        ).properties(height=h)),
         use_container_width=True)
-    st.caption("Lime = target hit.")
 
 with st.expander("One CA, month by month (incl. months before activity tracking)"):
     rep = st.selectbox("CA", sorted(sao[sao.rep_name.isin(ms.ca_name)].rep_name.unique()))
-    hist = sao[sao.rep_name == rep].sort_values("month")
+    hist = sao[sao.rep_name == rep].sort_values("month").copy()
+    hist["pipeline_usd"] = hist["pipeline_usd"].round().astype("Int64")  # whole $ -> no decimals
     st.dataframe(
         hist[["month", "saos", "sao_target", "saos_inbound", "saos_event", "pipeline_usd"]],
         hide_index=True, use_container_width=True,
@@ -116,5 +148,5 @@ with st.expander("One CA, month by month (incl. months before activity tracking)
             "month": st.column_config.DateColumn("Month", format="MMM YYYY"),
             "saos": "SAOs", "sao_target": "Target",
             "saos_inbound": "Inbound", "saos_event": "Event",
-            "pipeline_usd": st.column_config.NumberColumn("Pipeline $", format="$%d"),
+            "pipeline_usd": st.column_config.NumberColumn("Pipeline $", format="localized"),
         })

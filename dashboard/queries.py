@@ -98,6 +98,22 @@ MEETINGS_RH = """
     group by ca_name
 """
 
+# Dillon fix #22 (migration 006): each counted meeting bucketed as
+# new_stakeholder (first meeting with that ACCOUNT in a rolling 60 days) /
+# follow_up / no_account. Buckets are disjoint and sum to meetings_booked —
+# reconciled exactly against rep_scorecard on build day (decisions.md).
+MEETING_BREAKDOWN = "select * from rep_meeting_breakdown(%s, %s)"
+
+# the same split per calendar week / month (migration 007 — wraps the function,
+# so definitions can't drift; joins the 004 trend views on week/month + ca).
+# Weekly gets the same not-yet-started-week filter as WEEKLY_TREND.
+MEETING_BREAKDOWN_WEEKLY = """
+    select * from rep_meeting_breakdown_weekly
+    where week_start <= (select max(activity_date) from activity_flat where counts)
+    order by week_start, ca_name
+"""
+MEETING_BREAKDOWN_MONTHLY = "select * from rep_meeting_breakdown_monthly order by month_start, ca_name"
+
 # run-status indicators (metadata only; grant in migration 005)
 LAST_RUN = """
     select max(finished_at) as finished_at

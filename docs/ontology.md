@@ -40,7 +40,7 @@ Always: dials ≥ pursuits ≥ conversations. (~8–9 dials per conversation is 
 | **CA / rep** | One of the 17 Customer Associates on the resolved roster. Emails are attributed by **sender address** (all known addresses per rep, incl. encord.ai), never by HubSpot's "owner" field (proven unreliable). | |
 | **Direction** | **Outbound** = rep effort. **Inbound** = prospect engagement (replies). | |
 | **Automated vs manual** | Whether a machine or a human performed the action. For AmpleMarket steps it's the tool's own flag (reliable). For emails it's inferred from the logging source (weaker). | Meetings and inbound replies are "not classifiable" — neither bucket. |
-| **Account** | The HubSpot company an activity is tied to, after de-duplicating companies sharing a domain. | ~60% of counted activities have **no account** — mostly LinkedIn/calls where the source logged no contact. Meetings can't be tied to accounts at all yet (attendee emails not exposed). |
+| **Account** | The HubSpot company an activity is tied to, after de-duplicating companies sharing a domain. | ~60% of counted activities have **no account** — mostly LinkedIn/calls where the source logged no contact. Meetings now resolve to accounts via their **attendees** (~95%, since 2026-07-21) — used for the new-stakeholder split; the account drill-down views still exclude meetings (v1 decision, unchanged). |
 | **ICP tier** | The account's fit tier from HubSpot (`Tier 0` best → `Tier 4`, `DQ`). We show the *validated* tier field. | Most activity lands on untiered accounts — that reflects HubSpot tiering coverage, not a data fault. |
 | **Target account** | The account has a target-account owner assigned in HubSpot. | |
 | **Date** | The UTC day the activity happened (not when it synced). | UK afternoon and US morning share a UTC day, but US evening calls can land on the "next" UTC day. |
@@ -59,6 +59,9 @@ activities; these are the derived numbers built on top.
 | **Meetings canceled** | Meetings marked `CANCELED`. | |
 | **Meetings scheduled** | Upcoming, marked `SCHEDULED`/`RESCHEDULED`. | |
 | **Meetings unknown** | Booked minus held minus canceled minus scheduled — i.e. no outcome was logged. | This is usually the biggest bucket. "Unknown" means *not logged*, **never** assume held. Any new outcome value HubSpot invents also lands here, not in held. |
+| **Meetings — new stakeholder** | The first meeting with that **account** in a rolling **60 days** (each counted meeting resets the account's clock). Rule agreed with Dillon + Falc 2026-07-21. Computed from `rep_meeting_breakdown()`; sits **beside** booked, never replaces it. | Per account, not per person — a colleague met 2 weeks after the VP does **not** re-count. A **canceled** first meeting still holds the slot (outcome plays no part — it's only logged ~20% of the time). History starts Jul 6 2026, so early months naturally skew "new". |
+| **Meetings — follow-up** | A meeting on an account already met within the previous 60 days. | Booked and visible (churn stays visible), just not a *new* conversation. |
+| **Meetings — no account** | A counted meeting whose attendees couldn't be tied to a known account (~5%). | Always counted, shown in its own bucket — never silently dropped. New + follow-up + no-account always sum to booked. |
 | **Total counted** | Every counted activity for the rep, each counted once. | |
 | **Accounts touched** | Distinct companies the rep did at least one counted activity against, in the window. | Skips the ~60% of activities with no matched company (LinkedIn/calls/meetings) — understates true breadth. Trend over level. |
 | **Contacts touched** | Distinct people the rep did at least one counted activity against. | Same ~60% caveat. |
@@ -69,7 +72,7 @@ activities; these are the derived numbers built on top.
 
 ## Drill-down measures (rep → account → person — Phase 5)
 
-Computed per time window by the `rep_account_drilldown()` / `account_contact_drilldown()` / `owned_account_coverage()` views. **Meetings are not in these** (they can't be tied to an account yet — see Meeting above); they stay in the rep scorecard.
+Computed per time window by the `rep_account_drilldown()` / `account_contact_drilldown()` / `owned_account_coverage()` views. **Meetings are not in these** (v1 decision — meetings now *can* resolve to accounts via attendees, which powers the new-stakeholder split, but extending the drill-down views to include them would move validated numbers and needs sign-off); they stay in the rep scorecard.
 
 | Measure | Definition | Watch out |
 |---|---|---|
@@ -104,7 +107,9 @@ that ever breaks.
 *Sources: `model/rules.py` + `model/build_activity.py` (activity rules),
 `migrations/001_activity_model.sql` (activity fields), `migrations/002_rep_scorecard.sql`
 (scorecard measures), `migrations/004_sao_and_trends.sql` (SAO mirror + weekly/monthly
-trend views — which simply run `rep_scorecard()` per week/month), `docs/decisions.md`
+trend views — which simply run `rep_scorecard()` per week/month),
+`migrations/006_new_stakeholder_meetings.sql` (the meeting new/follow-up split, from
+attendees ingested by `ingestion/ingest_meeting_contacts.py`), `docs/decisions.md`
 (evidence for each caveat). Activity counts come from `activity_flat` and scorecard
 measures from `rep_scorecard()` — the same views every report and the dashboard read,
 so these definitions cannot drift between reports.*

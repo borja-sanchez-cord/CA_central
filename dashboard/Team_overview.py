@@ -15,6 +15,7 @@ sc = db.q(queries.SCORECARD, (start, end))
 n = len(sc)
 rh = db.q(queries.MEETINGS_RH, (start, end))
 rh_total = int(rh.rh.sum()) if len(rh) else 0
+mb = db.q(queries.MEETING_BREAKDOWN, (start, end))  # new/follow-up/no-account
 
 ui.kpi_row([
     {"label": "Activities", "value": int(sc.total_counted.sum()), "help": ui.DEFS["total_counted"]},
@@ -27,11 +28,11 @@ ui.kpi_row([
     {"label": "Inbound", "value": int(sc.inbound_replies.sum()),
      "help": ui.DEFS["inbound_replies"]},
     {"label": "Meetings", "value": int(sc.meetings_booked.sum()),
-     "sub": "%d held / %d canc / %d unk | %d via Revenue Hero" % (
-         sc.meetings_held.sum(), sc.meetings_canceled.sum(),
-         sc.meetings_unknown.sum(), rh_total),
-     "help": ui.DEFS["meetings_booked"] + " 'Via Revenue Hero' = auto-booked by the "
-             "inbound scheduler — still counted today."},
+     "sub": "%d new · %d held / %d canc / %d unk · %d RevHero" % (
+         mb.meetings_new_stakeholder.sum(), sc.meetings_held.sum(),
+         sc.meetings_canceled.sum(), sc.meetings_unknown.sum(), rh_total),
+     "help": ui.DEFS["meetings_booked"] + " 'New' = " + ui.DEFS["meetings_new_stakeholder"]
+             + " 'RevHero' = auto-booked by the inbound scheduler — still counted today."},
     {"label": "Other", "value": int(sc.other_outreach.sum()), "help": ui.DEFS["other"]},
 ])
 _inactive = ui.inactive_reps()
@@ -44,10 +45,12 @@ st.write("")
 st.subheader("Every CA, side by side")
 cols_int = ["total_counted", "auto_email", "manual_email", "emails", "dials",
             "pursuits", "conversations", "linkedin", "inbound_replies", "other_outreach",
-            "meetings_booked", "meetings_held", "meetings_canceled",
-            "meetings_scheduled", "meetings_unknown", "accounts_touched",
-            "contacts_touched", "accounts_owned", "owned_touched"]
-show = sc[["ca_name"] + cols_int + ["coverage_pct"]].copy()
+            "meetings_booked", "meetings_new_stakeholder", "meetings_held",
+            "meetings_canceled", "meetings_scheduled", "meetings_unknown",
+            "accounts_touched", "contacts_touched", "accounts_owned", "owned_touched"]
+# display-only merge of two approved surfaces (nothing recomputed)
+show = sc.merge(mb[["ca_name", "meetings_new_stakeholder"]], on="ca_name", how="left")
+show = show[["ca_name"] + cols_int + ["coverage_pct"]].copy()
 for c in cols_int:
     show[c] = show[c].fillna(0).astype(int)
 # direction-aware: canceled/unlogged meetings are BAD when high; owning more
@@ -70,6 +73,7 @@ st.dataframe(
         "inbound_replies": st.column_config.NumberColumn("Inbound", help=ui.DEFS["inbound_replies"]),
         "other_outreach": st.column_config.NumberColumn("Other", help=ui.DEFS["other"]),
         "meetings_booked": st.column_config.NumberColumn("Mtg booked", help=ui.DEFS["meetings_booked"]),
+        "meetings_new_stakeholder": st.column_config.NumberColumn("New meetings", help=ui.DEFS["meetings_new_stakeholder"]),
         "meetings_held": st.column_config.NumberColumn("Mtg held"),
         "meetings_canceled": st.column_config.NumberColumn("Mtg canceled"),
         "meetings_scheduled": st.column_config.NumberColumn("Mtg sched"),
@@ -113,3 +117,24 @@ st.altair_chart(ui.themed(
     ).properties(height=26 * n)),
     use_container_width=True)
 st.caption("Unknown = no outcome logged. Never assume held.")
+
+# --- new conversations vs follow-ups (Dillon rule, migration 006) -------------
+st.subheader("Meetings booked — new conversations vs follow-ups")
+b_cols = ["meetings_new_stakeholder", "meetings_follow_up", "meetings_no_account"]
+bl = mb[["ca_name"] + b_cols].melt("ca_name", var_name="bucket", value_name="count")
+bl["bucket"] = bl.bucket.map({"meetings_new_stakeholder": "new stakeholder",
+                              "meetings_follow_up": "follow-up",
+                              "meetings_no_account": "no account matched"})
+st.altair_chart(ui.themed(
+    alt.Chart(bl).mark_bar().encode(
+        x=alt.X("count:Q", title="Meetings"),
+        y=alt.Y("ca_name:N", sort="-x", title=None),
+        color=alt.Color("bucket:N", title=None,
+                        scale=alt.Scale(domain=["new stakeholder", "follow-up",
+                                                "no account matched"],
+                                        range=[ui.LIME, "#B48EAD", "#6B7280"])),
+        tooltip=["ca_name", "bucket", "count"],
+    ).properties(height=26 * n)),
+    use_container_width=True)
+st.caption("New = first meeting with that account in a rolling 60 days. "
+           "History starts Jul 6, so early weeks naturally skew new.")

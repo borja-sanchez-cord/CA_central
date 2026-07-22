@@ -23,6 +23,7 @@ LIME = "#B3E249"
 BG_CARD = "#272D39"
 BORDER = "#39404E"
 TEXT_DIM = "#A2A9B6"
+RAMP_RED = "#CC7A6F"   # ramping marker (muted red, matches the phone/call family)
 
 # --- soft/muted channel palette (family-grouped) ---------------------------
 CHANNEL_COLORS = {
@@ -51,6 +52,8 @@ MEASURE_LABELS = {
     "emails": "Emails", "dials": "Dials", "pursuits": "Pursuits",
     "conversations": "Conversations", "linkedin": "LinkedIn",
     "inbound_replies": "Inbound replies", "meetings_booked": "Meetings booked",
+    "meetings_new_stakeholder": "New-stakeholder meetings",
+    "meetings_follow_up": "Follow-up meetings",
     "other_outreach": "Other", "total_counted": "Activities",
     "accounts_touched": "Accounts touched", "contacts_touched": "Contacts touched",
     "coverage_pct": "Coverage %",
@@ -59,7 +62,7 @@ MEASURE_LABELS = {
 FAMILY = {
     "Activities": "#C7CCD6", "Emails": "#A7C957", "Dials": "#CC7A6F",
     "LinkedIn": "#7DA0CA", "Inbound": "#E4C07A", "Meetings": "#B48EAD",
-    "Other": "#9AA1AF", "Coverage": PURPLE,
+    "New meetings": "#B48EAD", "Other": "#9AA1AF", "Coverage": PURPLE,
 }
 
 DEFS = {
@@ -75,6 +78,9 @@ DEFS = {
     "other_outreach": "Sequence steps of unrecognised type (could be WhatsApp, research, anything).",
     "meetings_booked": "Every meeting in the window — booked, NOT held. Outcome is logged on only ~20%, so always read with the held/canceled/scheduled/unknown split.",
     "meetings_unknown": "Booked with no outcome logged — usually the biggest bucket. Never assume held.",
+    "meetings_new_stakeholder": "First meeting with that ACCOUNT in a rolling 60 days. A colleague met soon after the first conversation doesn't re-count; a canceled first meeting still holds the slot. History starts Jul 6 2026, so early months naturally skew 'new'.",
+    "meetings_follow_up": "A meeting on an account already met within the previous 60 days — booked and visible, but not a new conversation.",
+    "meetings_no_account": "No attendee we can tie to a known account — still counted, shown honestly (~5% of meetings).",
     "total_counted": "Every counted activity for the rep, each counted once.",
     "accounts_touched": "Distinct companies with at least one counted activity (misses the ~60% of activity with no matched company).",
     "contacts_touched": "Distinct people with at least one counted activity (same ~60% caveat).",

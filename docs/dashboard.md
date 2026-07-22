@@ -34,6 +34,8 @@ verified the activity data; the dashboard must never put that at risk:
 | `rep_weekly_trend` / `rep_monthly_scorecard` | NEW (migration 004): the scorecard evaluated per calendar week / month — *wraps* `rep_scorecard()`, so definitions cannot drift. |
 | `sao_monthly` | NEW (migration 004): Ray's tracker, one row per rep per month. |
 | `dim_ca`, `dim_account`, `dim_contact` | Names/tiers for display. |
+| `rep_meeting_breakdown(start, end)` + `_alltime`, `meeting_new_stakeholder_flags`, `meeting_account_map` | NEW (migration 006, Dillon fix #22): each counted meeting bucketed new-stakeholder / follow-up / no-account (buckets sum to booked). Sits BESIDE `meetings_booked`, never replaces it. The raw attendee table stays closed to the reader. |
+| `rep_meeting_breakdown_weekly` / `rep_meeting_breakdown_monthly` | NEW (migration 007): the meeting split evaluated per calendar week / month — *wraps* `rep_meeting_breakdown()` exactly like the 004 trend views wrap `rep_scorecard()`, and joins them on (week/month, ca). |
 
 Anything else (raw tables, activity fact table) is invisible to the dashboard
 login. Exposing a new object to the dashboard is a deliberate act (an explicit
@@ -51,20 +53,28 @@ amber = inbound) across all tables and charts.
 1. **Team overview** (landing) — every CA side by side: KPI cards with
    sub-numbers (auto/manual, conversations, meetings split), family-tinted
    scorecard table, channel mix, meetings **always split**
-   booked/held/canceled/scheduled/unknown.
-2. **Per CA** (pick a CA) — KPI cards, dot-first week-by-week trend, account
+   booked/held/canceled/scheduled/unknown, plus the new-conversations vs
+   follow-ups bar ("Mtg new" also in the table — migration 006).
+2. **Per CA** (pick a CA) — KPI cards (incl. "New mtgs" with its
+   follow-up/unmatched sub-split), dot-first week-by-week trend, account
    breakdown stacked by channel (unmatched activity shown as an explainer
    pill, still counted — totals reconcile). Pick an account → the people
    touched at it.
 3. **Account coverage** — CA × account heat map (the team's most-touched
    accounts), owned-account coverage table, neglected top-tier accounts
    grouped per CA (counts in pills, never titles).
-4. **Trends** — weekly dot-first lines for any measure; explicit "Whole team"
-   entry plus any CAs for comparison. The "are coaching changes working"
-   screen; it gets better every week.
-5. **SAO vs activity** (monthly) — activity (purple-tinted columns) next to
-   Ray's results (lime-tinted), Ⓡ = ramping, paired meetings-vs-SAOs bars,
-   attainment. **Labelled "directional"** (see timing rules).
+4. **Trends** — weekly dot-first lines for any measure, now incl.
+   **New-stakeholder / Follow-up meetings** (migration 007); explicit "Whole
+   team" entry plus any CAs for comparison. The "are coaching changes
+   working" screen; it gets better every week.
+5. **SAO vs activity** (monthly) — activity (purple-tinted columns, incl. a
+   **New meetings** column) next to Ray's results (lime-tinted), ramping shown
+   as a red `*` in its own column, a **New meetings vs SAOs** bar (net-new
+   only — follow-ups excluded, since a follow-up shouldn't count toward the
+   meeting→SAO ratio) sitting flush beside the **SAO-attainment** bar (its own
+   red scale: stronger red = target hit, kept distinct from the purple/lime
+   left chart). Pipeline $ is comma-grouped. **Labelled "directional"** (see
+   timing rules).
 6. **Raw data** — the live read-only view of `activity_flat`: filter, click
    any row → full detail incl. **email body**, duplicates collapsed, and the
    exact exclusion reason for non-counted rows ("Counted in reports" vs

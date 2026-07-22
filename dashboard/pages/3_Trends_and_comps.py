@@ -16,7 +16,8 @@ first, last = ui.setup(
 
 MEASURES = ["total_counted", "emails", "auto_email", "manual_email", "dials",
             "pursuits", "conversations", "linkedin", "inbound_replies",
-            "meetings_booked", "accounts_touched", "contacts_touched", "coverage_pct"]
+            "meetings_booked", "meetings_new_stakeholder", "meetings_follow_up",
+            "accounts_touched", "contacts_touched", "coverage_pct"]
 
 win = st.pills("Weeks", ["Last 4 weeks", "Last 12 weeks", "All weeks"],
                default="All weeks", key="trend_weeks", label_visibility="collapsed")
@@ -24,6 +25,12 @@ c1, c2 = st.columns([1, 2])
 measure = c1.selectbox("Measure", MEASURES,
                        format_func=lambda m: ui.MEASURE_LABELS.get(m, m))
 wk = ui.week_label(db.q(queries.WEEKLY_TREND))
+# the 60-day meeting split (migration 007) rides along on (week, ca) — a
+# display-only join of two approved surfaces, nothing recomputed
+wk = wk.merge(
+    db.q(queries.MEETING_BREAKDOWN_WEEKLY)[
+        ["week_start", "ca_name", "meetings_new_stakeholder", "meetings_follow_up"]],
+    on=["week_start", "ca_name"], how="left")
 n_weeks = {"Last 4 weeks": 4, "Last 12 weeks": 12}.get(win)
 if n_weeks:
     keep = sorted(wk.week_start.unique())[-n_weeks:]
