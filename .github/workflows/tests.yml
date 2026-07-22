@@ -1,8 +1,11 @@
 name: Rule tests
 
 # Every push runs the Phase 3 rule tests (pure logic + real validated
-# fixtures — no database, no API keys needed). A red X here means a
-# dedup/attribution rule regressed against a case we know the answer to.
+# fixtures) PLUS the drill-through reconciliation audit (read-only queries
+# against the live DB: every chart->card measure mapping must count exactly
+# what the scorecard counts — see tests/test_drill_reconciles.py). A red X
+# here means a dedup/attribution rule regressed, or a chart definition and
+# its drill map drifted apart.
 
 on:
   push:
@@ -11,11 +14,13 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - run: pip install -r ingestion/requirements.txt pytest
-      - run: python -m pytest tests/ -q
+      - env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: python -m pytest tests/ -q

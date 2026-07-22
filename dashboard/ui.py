@@ -363,23 +363,12 @@ def family_tints(columns, families, alpha=0.09):
 # layer only; the card re-reads activity_flat with the mark's own filters —
 # nothing is recomputed). From the card you can jump to Raw data pre-filtered.
 
-# chart measure/column -> the activity_flat channel set it draws (the full
-# list mirrors the model's channel vocabulary guard)
-ALL_CHANNELS = ["auto_email", "manual_email", "call", "li_connect", "li_message",
-                "li_other", "inbound_email", "meeting", "whatsapp", "sms", "other"]
-DRILL_CHANNELS = {
-    "total_counted": ALL_CHANNELS,
-    "emails": ["auto_email", "manual_email"],
-    "auto_email": ["auto_email"], "manual_email": ["manual_email"],
-    "dials": ["call"], "calls": ["call"],
-    "linkedin": ["li_connect", "li_message", "li_other"],
-    "inbound_replies": ["inbound_email"],
-    "meetings_booked": ["meeting"],
-    "other_outreach": ["whatsapp", "sms", "other"],
-}
-# meetings-outcome bar -> the outcome selector DRILL_ROWS understands
-OUTCOME_PARAM = {"held": "COMPLETED", "canceled": "CANCELED",
-                 "scheduled": "scheduled", "unknown": "unknown"}
+# the measure->filter maps live in queries.py (importable without streamlit,
+# so the reconciliation test can audit them on every push); aliased here for
+# the pages, which address everything drill-related through ui.*
+ALL_CHANNELS = queries.ALL_CHANNELS
+DRILL_CHANNELS = queries.DRILL_CHANNELS
+OUTCOME_PARAM = queries.OUTCOME_PARAM
 
 
 def datum_date(v):

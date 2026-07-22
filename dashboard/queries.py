@@ -118,6 +118,28 @@ MEETINGS_RH = """
 MEETING_BREAKDOWN = "select * from rep_meeting_breakdown(%s, %s)"
 
 # --- chart drill-through (click a bar/dot -> peek at the underlying rows) ----
+# The measure->filter maps live HERE (pure constants, importable without
+# streamlit) so tests/test_drill_reconciles.py can assert, on every push, that
+# each mapping counts exactly what the scorecard counts — the two are written
+# separately and this is what keeps them from drifting apart silently.
+
+# chart measure/column -> the activity_flat channel set it draws (the full
+# list mirrors the model's channel vocabulary guard)
+ALL_CHANNELS = ["auto_email", "manual_email", "call", "li_connect", "li_message",
+                "li_other", "inbound_email", "meeting", "whatsapp", "sms", "other"]
+DRILL_CHANNELS = {
+    "total_counted": ALL_CHANNELS,
+    "emails": ["auto_email", "manual_email"],
+    "auto_email": ["auto_email"], "manual_email": ["manual_email"],
+    "dials": ["call"], "calls": ["call"],
+    "linkedin": ["li_connect", "li_message", "li_other"],
+    "inbound_replies": ["inbound_email"],
+    "meetings_booked": ["meeting"],
+    "other_outreach": ["whatsapp", "sms", "other"],
+}
+# meetings-outcome bar -> the outcome selector DRILL_ROWS understands
+OUTCOME_PARAM = {"held": "COMPLETED", "canceled": "CANCELED",
+                 "scheduled": "scheduled", "unknown": "unknown"}
 # Same source of truth as everything else (activity_flat, counted rows only),
 # filtered to exactly the slice the clicked mark drew: window, CA, channel set,
 # optional account, optional meeting-outcome bucket (the outcome vocabulary
