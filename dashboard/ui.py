@@ -86,7 +86,7 @@ DEFS = {
     "contacts_touched": "Distinct people with at least one counted activity (same ~60% caveat).",
     "accounts_owned": "Companies where this rep is the HubSpot target-account owner.",
     "owned_touched": "Of the rep's owned accounts, how many they PERSONALLY touched in the window.",
-    "coverage_pct": "Owned touched / accounts owned — likely a slight under-count; compare reps, watch the trend.",
+    "coverage_pct": "Owned touched / accounts owned — likely a slight under-count; compare reps, watch the trend. Counts ALL owned accounts, including customers / open deals / recently lost the CA may be right to leave alone — NOT deal-aware like the neglected flag.",
     "touchpoints": "Counted activities filed under that account/person. Meetings excluded (can't be tied to accounts yet).",
     "saos": "SAOs achieved (from Ray's Global CA Performance Tracker, monthly).",
     "sao_target": "That rep's monthly SAO target (Ray's tracker).",

@@ -84,12 +84,25 @@ st.dataframe(
         "coverage_pct": st.column_config.NumberColumn(
             "Coverage", format="%d%%", help="They touched / Owns."),
     })
+st.caption(":grey[Note — coverage counts **every** owned account, including customers, open "
+           "deals and recently lost/churned ones a CA may be right to leave alone. Unlike the "
+           "neglected flag below, it is **not** deal-aware, so read a low % as a prompt to look, "
+           "not a verdict. (Whether open deals should count here is still open.)]")
 
 # --- neglected top-tier accounts -------------------------------------------------
 # Zero-touch accounts that are customers, mid-deal, or recently lost/churned
 # are NOT neglect (Dillon rules, Jul 2026) — they get a label and stay in the
 # list; only the unshielded remainder is flagged red and charted.
-st.subheader("Neglected top-tier accounts")
+st.subheader("Neglected top-tier accounts", help=(
+    "**What counts as neglected?**\n\n"
+    "An owned **top-tier** account (Tier 0/1) with **zero touches by anyone** — "
+    "unless one of these says leave it alone:\n"
+    "- **Customer** — a won deal, not churned since. Never flagged.\n"
+    "- **Open deal** — a deal in progress. Not flagged while open "
+    "(age shown, so a stale deal nobody closed stays visible).\n"
+    "- **Lost** — closed-lost. Rests 60 days, then flags again.\n"
+    "- **Churned** — churn or lost renewal. Rests 9 months, then flags again.\n\n"
+    "Labels come from HubSpot deals, synced nightly."))
 
 
 def _status(r):
@@ -114,13 +127,8 @@ t01["status"] = t01.apply(_status, axis=1) if len(t01) else ""
 negl = t01[t01.shield.isna()]
 ui.pill("<b>%d</b> owned top-tier accounts, zero recorded touches by anyone" % len(negl), "red")
 st.caption("Top tier = HubSpot Tier 0/1 — the validated tier field, never the automated one. "
-           "%d more untouched top-tier accounts are labelled, not flagged." % (len(t01) - len(negl)),
-           help="Deal-aware rules (Dillon, Jul 2026): a customer — a won deal not "
-                "churned since — is never flagged; an account mid-deal is never "
-                "flagged while the deal is open (the deal's age is shown, so a "
-                "stale deal nobody closed stays auditable); closed-lost rests 60 "
-                "days; churned or lost-renewal rests 9 months. Labels come from "
-                "HubSpot deals, synced nightly.")
+           "%d more untouched top-tier accounts are labelled, not flagged (see the "
+           "**?** by the heading)." % (len(t01) - len(negl)))
 if len(t01):
     counts = (negl.groupby(["owner_name", "icp_tier"]).size()
                   .reset_index(name="n"))
