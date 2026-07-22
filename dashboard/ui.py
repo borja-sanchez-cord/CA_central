@@ -62,7 +62,7 @@ MEASURE_LABELS = {
 FAMILY = {
     "Activities": "#C7CCD6", "Emails": "#A7C957", "Dials": "#CC7A6F",
     "LinkedIn": "#7DA0CA", "Inbound": "#E4C07A", "Meetings": "#B48EAD",
-    "New meetings": "#B48EAD", "Other": "#9AA1AF", "Coverage": PURPLE,
+    "New meetings": "#7A5195", "Other": "#9AA1AF", "Coverage": PURPLE,
 }
 
 DEFS = {
@@ -250,6 +250,20 @@ def kpi_row(cards):
 
 def pill(text, color=""):
     st.markdown('<span class="pill %s">%s</span>' % (color, text), unsafe_allow_html=True)
+
+
+def centered_legend(items):
+    """A horizontally-centered swatch legend from (label, color) pairs. Used
+    where Altair's built-in bottom legend anchors to the left of the plot
+    (the long y-axis labels push the plot right, so its legend looks off)."""
+    chips = "".join(
+        '<span style="display:inline-block;margin:0 12px;white-space:nowrap;">'
+        '<span style="display:inline-block;width:11px;height:11px;background:%s;'
+        'border-radius:2px;vertical-align:middle;margin-right:6px;"></span>'
+        '<span style="vertical-align:middle;">%s</span></span>' % (c, html.escape(l))
+        for l, c in items)
+    st.markdown('<div style="text-align:center;font-size:.8rem;color:%s;margin:-4px 0 2px;">%s</div>'
+                % (TEXT_DIM, chips), unsafe_allow_html=True)
 
 
 def channel_legend():

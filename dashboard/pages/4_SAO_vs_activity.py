@@ -97,45 +97,50 @@ st.caption("Purple tint = activity (our data) | lime tint = results (Ray's track
 # SAOs, NOT total booked — a follow-up meeting shouldn't count toward the
 # meeting->SAO ratio (it would flatter reps whose meetings churn). Follow-up
 # and no-account detail lives in the table above and on Team overview.
-st.subheader("New meetings vs SAOs, per CA")
+st.subheader("Effort vs results, per CA")
 pair = j.dropna(subset=["saos"])[["ca", "meetings_new_stakeholder", "saos"]].melt(
     "ca", var_name="what", value_name="n")
 pair["what"] = pair.what.map({"meetings_new_stakeholder": "New meetings", "saos": "SAOs"})
 sort_order = j.dropna(subset=["saos"]).sort_values("saos", ascending=False).ca.tolist()
-h = 26 * len(sort_order) + 60
+h = 26 * len(sort_order) + 40
+RED_HIT, RED_MISS = "#C0554B", "#E3B0A8"
 c1, c2 = st.columns(2, gap="small")
 with c1:
+    # each chart gets its OWN parallel title (a single spanning subheader read
+    # as if it were only the left chart's); Altair's built-in legend is off —
+    # ui.centered_legend draws a centered one below (native one anchors left).
+    st.markdown("**New meetings vs SAOs**")
     st.altair_chart(ui.themed(
         alt.Chart(pair).mark_bar().encode(
             y=alt.Y("ca:N", sort=sort_order, title=None),
             x=alt.X("n:Q", title=None),
             yOffset=alt.YOffset("what:N"),
-            # legend at the bottom so it doesn't eat the gap between the two charts
-            color=alt.Color("what:N", legend=alt.Legend(orient="bottom", title=None),
+            color=alt.Color("what:N", legend=None,
                             scale=alt.Scale(domain=["New meetings", "SAOs"],
                                             range=[ui.PURPLE, ui.LIME])),
             tooltip=["ca", "what", "n"],
         ).properties(height=h)),
         use_container_width=True)
+    ui.centered_legend([("New meetings", ui.PURPLE), ("SAOs", ui.LIME)])
     st.caption("New meetings vs the SAOs they'll eventually produce (SAOs lag outreach).")
 with c2:
     # deliberately NOT purple/lime — those mean new-meetings/SAOs on the left
     # chart; reusing them here (where the split is below-target / target-hit)
     # would read as the same thing. Own scale: light red below, strong red hit.
-    # Encoded as a CATEGORY (not raw alt.value) so Altair renders a legend.
-    RED_HIT, RED_MISS = "#C0554B", "#E3B0A8"
+    st.markdown("**SAO target attainment**")
     att = j.dropna(subset=["attainment_pct"]).copy()
     att["hit"] = att.attainment_pct.map(lambda v: "Target hit" if v >= 100 else "Below target")
     st.altair_chart(ui.themed(
         alt.Chart(att).mark_bar().encode(
-            x=alt.X("attainment_pct:Q", title="SAO target attainment %"),
+            x=alt.X("attainment_pct:Q", title="Attainment %"),
             y=alt.Y("ca:N", sort="-x", title=None),
-            color=alt.Color("hit:N", legend=alt.Legend(orient="bottom", title=None),
+            color=alt.Color("hit:N", legend=None,
                             scale=alt.Scale(domain=["Target hit", "Below target"],
                                             range=[RED_HIT, RED_MISS])),
             tooltip=["ca", "saos", "sao_target", "attainment_pct"],
         ).properties(height=h)),
         use_container_width=True)
+    ui.centered_legend([("Target hit", RED_HIT), ("Below target", RED_MISS)])
 
 with st.expander("One CA, month by month (incl. months before activity tracking)"):
     rep = st.selectbox("CA", sorted(sao[sao.rep_name.isin(ms.ca_name)].rep_name.unique()))

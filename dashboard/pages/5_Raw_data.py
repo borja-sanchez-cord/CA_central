@@ -20,10 +20,10 @@ c1, c2, c3, c4 = st.columns([1.2, 1.2, 1.6, 1.2])
 rep = c1.selectbox("CA", reps)
 channel = c2.selectbox("Channel", channels,
                        format_func=lambda c: ui.CHANNEL_LABELS.get(c, c))
-counted = c3.radio("Rows", ["counted", "excluded", "all"], horizontal=True,
-                   format_func={"counted": "Counted in reports",
-                                "excluded": "Excluded (kept for audit)",
-                                "all": "Everything"}.get)
+counted = c3.radio("Show", ["counted", "excluded", "all"], horizontal=True,
+                   format_func={"counted": "Counted (in the numbers)",
+                                "excluded": "Not counted (kept for audit)",
+                                "all": "All rows"}.get)
 search = c4.text_input("Subject / account contains")
 
 _COUNTED_HELP = (

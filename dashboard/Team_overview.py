@@ -28,17 +28,16 @@ ui.kpi_row([
     {"label": "Inbound", "value": int(sc.inbound_replies.sum()),
      "help": ui.DEFS["inbound_replies"]},
     {"label": "Meetings", "value": int(sc.meetings_booked.sum()),
-     "sub": "%d new · %d held / %d canc / %d unk · %d RevHero" % (
-         mb.meetings_new_stakeholder.sum(), sc.meetings_held.sum(),
-         sc.meetings_canceled.sum(), sc.meetings_unknown.sum(), rh_total),
-     "help": ui.DEFS["meetings_booked"] + " 'New' = " + ui.DEFS["meetings_new_stakeholder"]
-             + " 'RevHero' = auto-booked by the inbound scheduler — still counted today."},
+     "sub": "%d held / %d canc / %d unk · %d RevHero" % (
+         sc.meetings_held.sum(), sc.meetings_canceled.sum(),
+         sc.meetings_unknown.sum(), rh_total),
+     "help": ui.DEFS["meetings_booked"] + " 'RevHero' = auto-booked by the inbound "
+             "scheduler — still counted today."},
+    {"label": "New meetings", "value": int(mb.meetings_new_stakeholder.sum()),
+     "sub": "of %d booked" % int(sc.meetings_booked.sum()),
+     "help": ui.DEFS["meetings_new_stakeholder"]},
     {"label": "Other", "value": int(sc.other_outreach.sum()), "help": ui.DEFS["other"]},
 ])
-_inactive = ui.inactive_reps()
-if _inactive:
-    st.caption("Left the CA team — history kept, recent activity tapers to zero as the "
-               "window moves: " + ", ".join(sorted(_inactive)))
 st.write("")
 
 # --- per-rep scorecard table: red->green heatmap per column ------------------
