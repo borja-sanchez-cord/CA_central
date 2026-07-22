@@ -8,28 +8,9 @@ import queries
 import ui
 
 first, last = ui.setup(
-    "Account coverage",
+    "Account coverage & neglects",
     "Which accounts each CA is working — and which of the accounts they own are being left untouched.")
 start, end, label = ui.window_pills(first, last)
-
-# --- CA × account heat map ------------------------------------------------------
-st.subheader("Where the touchpoints are landing")
-d = ui.active_only(db.q(queries.REP_ACCOUNTS_ALL, (start, end)))
-d = d[d.account_name != "(no account matched)"]
-top_accounts = (d.groupby("account_name").touchpoints.sum()
-                 .sort_values(ascending=False).head(25).index.tolist())
-hm = d[d.account_name.isin(top_accounts)]
-st.altair_chart(ui.themed(
-    alt.Chart(hm).mark_rect(cornerRadius=2).encode(
-        x=alt.X("ca_name:N", title=None, axis=alt.Axis(labelAngle=-40)),
-        y=alt.Y("account_name:N", sort=top_accounts, title=None,
-                axis=alt.Axis(labelLimit=280)),
-        color=alt.Color("touchpoints:Q", title="Touchpoints",
-                        scale=alt.Scale(range=["#232A12", ui.LIME], interpolate="rgb")),
-        tooltip=["ca_name", "account_name", "touchpoints"],
-    ).properties(height=560)),
-    use_container_width=True)
-st.caption("Top 25 most-touched accounts. Brighter = more touchpoints.")
 
 # --- accounts by touchpoint volume (distribution per CA) ------------------------
 st.subheader("Accounts by touchpoint volume")

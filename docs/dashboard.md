@@ -61,8 +61,8 @@ amber = inbound) across all tables and charts.
    breakdown stacked by channel (unmatched activity shown as an explainer
    pill, still counted — totals reconcile). Pick an account → the people
    touched at it.
-3. **Account coverage** — CA × account heat map (the team's most-touched
-   accounts), owned-account coverage table, neglected top-tier accounts
+3. **Account coverage & neglects** — accounts-by-touchpoint-volume
+   distribution, owned-account coverage table, neglected top-tier accounts
    grouped per CA (counts in pills, never titles). Untouched accounts that
    are customers / mid-deal / recently lost or churned show a **deal-status
    label instead of the red flag** (migration 008, Dillon #24+#25); the red
