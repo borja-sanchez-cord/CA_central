@@ -134,6 +134,16 @@ h1 {font-size: 1.6rem !important; letter-spacing: -.01em;}
 .swatch {display:inline-block; width:11px; height:11px; border-radius:2px;
          margin:0 4px 0 12px; vertical-align:middle;}
 
+/* Encord sidebar logo: center it in the column, drop it below the top edge so
+   it's centered in the space above the nav, and 15%% smaller (32px -> 27px). */
+[data-testid="stSidebarHeader"] {display:flex; justify-content:flex-start;
+  align-items:center; position:relative;
+  padding-top:48px; padding-bottom:22px; padding-left:8px;}
+/* take the collapse chevron out of flow so it doesn't push the logo right —
+   park it top-right where it belongs */
+[data-testid="stSidebarCollapseButton"] {position:absolute; right:0; top:6px;}
+[data-testid="stSidebarLogo"] {height:32px !important; width:auto !important;}
+
 /* squarer everything, tighter grid lines */
 div[data-testid="stDataFrame"] {border-radius:5px;}
 button, .stButton>button {border-radius:5px !important;}
@@ -184,7 +194,7 @@ def _status_pills():
     action = dr.iloc[0]["finished_at"] if len(dr) else None
     action_s = action.strftime("%a %d %b, %H:%M UTC") if action is not None else "unknown"
     first, last = data_range()
-    return ('<div style="text-align:right; padding-top:10px;">'
+    return ('<div style="text-align:right; padding-top:30px;">'
             '<span class="pill"><span class="dot"></span>'
             'Last sync: <b>%s</b></span><br>'
             '<span class="pill">Data through: <b>%s</b></span></div>'
