@@ -1,0 +1,75 @@
+activity_id,ca,pred,my_label,fam_size,nearest_j
+hs_email:502462830833,Hugo Mayne,Templated,Templated,5,1.0
+hs_email:504269151473,Joe Turner,Templated,Templated,8,0.686
+hs_email:502307963092,Yuvi Ajoomal,Templated,Templated,3,1.0
+hs_email:502784336060,Andrew Bell,Templated,Templated,3,1.0
+hs_email:502667436276,Will Sawyer,Templated,Templated,7,1.0
+hs_email:502462072024,Hugo Mayne,Templated,Templated,4,0.743
+hs_email:506153401557,Constantin Victor Beat Ertel,Templated,Templated,9,1.0
+hs_email:506055612625,Nicolas Fernandez,Templated,Templated,3,1.0
+hs_email:503451523292,Diego Bracamonte,Templated,Templated,3,1.0
+hs_email:502661339369,Will Sawyer,Templated,Templated,6,1.0
+hs_email:502305964219,Joe Turner,Templated,Templated,7,0.489
+hs_email:505600198865,Hugo Mayne,Templated,Templated,4,0.736
+hs_email:502354085096,George Lim,Templated,Templated,7,1.0
+hs_email:503876929758,Katie Mannion,Templated,Templated,3,1.0
+hs_email:503523645670,Satchel Sevenau,Templated,Templated,4,1.0
+hs_email:503528836291,Diego Bracamonte,Templated,Templated,3,1.0
+hs_email:503761246447,Laura Zhu,Templated,Templated,3,0.849
+hs_email:502691362025,Will Sawyer,Templated,Templated,4,1.0
+hs_email:505805026528,Sachit Shenai,Templated,Templated,30,0.444
+hs_email:503757189362,Will Sawyer,Templated,Templated,146,1.0
+hs_email:505611646143,Ria Passi,Templated,Templated,92,1.0
+hs_email:503640155343,Joe Turner,Templated,Templated,91,1.0
+hs_email:504508553407,Callum Marley,Templated,Templated,63,0.465
+hs_email:505452488894,Hugo Mayne,Templated,Templated,36,1.0
+hs_email:502428960962,George Lim,Templated,Templated,138,1.0
+hs_email:504075512021,Katie Mannion,Templated,Templated,80,0.929
+hs_email:502220092655,Sachit Shenai,Templated,Templated,233,0.81
+hs_email:504177360083,Joe Turner,Templated,Templated,369,0.986
+hs_email:503261494503,Satchel Sevenau,Templated,Templated,172,1.0
+hs_email:502440856790,George Lim,Templated,Templated,138,1.0
+hs_email:502475011302,Sachit Shenai,Templated,Templated,233,0.81
+hs_email:502493232353,Callum Marley,Templated,Templated,182,1.0
+hs_email:502610052338,Callum Marley,Templated,Templated,76,1.0
+hs_email:504854712531,Gauri Swarup,Templated,Templated,23,0.756
+hs_email:506240846050,Yuvi Ajoomal,Templated,Templated,13,0.847
+hs_email:502617987276,George Lim,Templated,Templated,75,1.0
+hs_email:505393660101,Ria Passi,Personalized,Personalized,1,0.0
+hs_email:503343593668,Nicolas Fernandez,Personalized,Personalized,1,0.016
+hs_email:502963159263,Hugo Mayne,Personalized,Personalized,1,0.011
+hs_email:503483203811,Callum Marley,Personalized,Personalized,1,0.012
+hs_email:503566111962,Katie Mannion,Personalized,Personalized,1,0.013
+hs_email:505879412938,Laura Zhu,Personalized,Personalized,1,0.111
+hs_email:502768380122,Nicolas Fernandez,Personalized,Personalized,1,0.052
+hs_email:505190166762,Sachit Shenai,Personalized,Personalized,1,0.039
+hs_email:503225897188,Will Sawyer,Personalized,Personalized,1,0.0
+hs_email:503212523766,Will Sawyer,Personalized,Personalized,1,0.0
+hs_email:504417261778,George Lim,Personalized,Personalized,1,0.006
+hs_email:502700520659,Andrew Bell,Personalized,Personalized,1,0.014
+hs_email:503491248351,Nicolas Fernandez,Personalized,Personalized,1,0.029
+hs_email:502204718296,Constantin Victor Beat Ertel,Personalized,Personalized,1,0.006
+hs_email:503435521258,Joe Turner,Personalized,Personalized,1,0.0
+hs_email:502837000381,Andrew Bell,Personalized,Personalized,1,0.011
+hs_email:503026042058,Katie Mannion,Personalized,Personalized,1,0.0
+hs_email:502648590560,Yuvi Ajoomal,Personalized,Personalized,1,0.013
+hs_email:502199677117,Andrew Bell,Personalized,Personalized,1,0.065
+hs_email:503392827610,Diego Bracamonte,Personalized,Personalized,1,0.027
+hs_email:503225733307,Will Sawyer,Personalized,Personalized,1,0.0
+hs_email:502555818205,Constantin Victor Beat Ertel,Personalized,Personalized,1,0.0
+hs_email:503519670493,Joe Turner,Personalized,Personalized,1,0.0
+hs_email:502969126100,George Lim,Personalized,Personalized,1,0.0
+hs_email:503181342917,Yuvi Ajoomal,Personalized,Personalized,1,0.006
+hs_email:502309334261,Constantin Victor Beat Ertel,Personalized,Personalized,1,0.006
+hs_email:505177697506,Constantin Victor Beat Ertel,Personalized,Personalized,1,0.0
+hs_email:502355953912,Constantin Victor Beat Ertel,Personalized,Personalized,1,0.0
+hs_email:502932396264,Gauri Swarup,Personalized,Personalized,1,0.018
+hs_email:503343703255,Satchel Sevenau,Personalized,Personalized,1,0.024
+hs_email:503778769087,Laura Zhu,Personalized,Templated,2,0.328
+hs_email:504547489001,Hugo Mayne,Personalized,Templated,2,0.288
+hs_email:505258409203,Ria Passi,Personalized,Personalized,2,0.0
+hs_email:504664852718,Callum Marley,Personalized,Personalized,2,0.104
+hs_email:506135268599,Satchel Sevenau,Personalized,Personalized,2,0.014
+hs_email:504192822496,Ria Passi,Personalized,Personalized,2,0.007
+hs_email:503799187677,Callum Marley,Personalized,Personalized,2,0.0
+hs_email:502936279242,Gauri Swarup,Personalized,Personalized,2,0.0

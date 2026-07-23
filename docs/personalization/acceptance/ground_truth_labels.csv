@@ -1,0 +1,216 @@
+activity_id,ca,vtype,fam_sim,is_reply,is_selfbump,label,family_id
+hs_email:503720582359,Satchel Sevenau,exact_pure_blast,90,True,False,Templated,6
+hs_email:503197921524,George Lim,exact_pure_blast,95,False,True,Templated,346
+hs_email:502567403768,Hugo Mayne,exact_pure_blast,268,False,False,Templated,158
+hs_email:503800730853,Hugo Mayne,exact_pure_blast,233,True,False,Templated,172
+hs_email:503572274413,George Lim,exact_pure_blast,346,False,False,Templated,349
+hs_email:502804482278,Andrew Bell,exact_pure_blast,3,False,True,Templated,1525
+hs_email:502503096520,Katie Mannion,exact_pure_blast,146,False,False,Templated,343
+hs_email:503704848621,Joe Turner,exact_pure_blast,369,False,False,Templated,544
+hs_email:502610003170,Laura Zhu,exact_pure_blast,268,False,False,Templated,158
+hs_email:502413083860,Will Sawyer,exact_pure_blast,177,True,False,Templated,340
+hs_email:502579499205,George Lim,exact_pure_blast,75,False,False,Templated,892
+hs_email:504274585808,Joe Turner,exact_pure_blast,233,True,False,Templated,172
+hs_email:505292947653,Joe Turner,exact_pure_blast,36,False,True,Templated,276
+hs_email:505406404843,Kat Romanska,exact_pure_blast,15,False,True,Templated,394
+hs_email:503450820804,Diego Bracamonte,exact_pure_blast,6,False,False,Templated,1362
+hs_email:502946888952,George Lim,exact_pure_blast,177,False,False,Templated,340
+hs_email:504193111236,Hugo Mayne,exact_pure_blast,233,True,False,Templated,172
+hs_email:505152476368,Gauri Swarup,exact_pure_blast,131,True,False,Templated,211
+hs_email:503414272206,George Lim,exact_pure_blast,95,False,True,Templated,346
+hs_email:503053624538,Constantin Victor Beat Ertel,exact_pure_blast,248,True,False,Templated,167
+hs_email:505133190364,George Lim,exact_pure_blast,172,False,True,Templated,920
+hs_email:502996878580,George Lim,exact_pure_blast,346,False,False,Templated,349
+hs_email:504965743808,George Lim,exact_pure_blast,172,False,True,Templated,920
+hs_email:505595791557,Gauri Swarup,exact_pure_blast,44,True,False,Templated,493
+hs_email:504265761993,Constantin Victor Beat Ertel,exact_pure_blast,36,True,False,Templated,164
+hs_email:505170058453,Satchel Sevenau,exact_merge_template,48,True,False,Templated,7
+hs_email:503021121757,Katie Mannion,exact_merge_template,47,True,False,Templated,1002
+hs_email:502872443097,Katie Mannion,exact_merge_template,47,True,False,Templated,1002
+hs_email:503750177999,Ria Passi,exact_merge_template,123,False,False,Templated,307
+hs_email:502609955048,Katie Mannion,exact_merge_template,52,False,False,Templated,999
+hs_email:502233545929,George Lim,exact_merge_template,81,False,False,Templated,332
+hs_email:502221910236,George Lim,exact_merge_template,81,False,False,Templated,332
+hs_email:502373135602,George Lim,exact_merge_template,161,False,True,Templated,333
+hs_email:506155195590,Ria Passi,exact_merge_template,123,False,False,Templated,307
+hs_email:502629435639,George Lim,exact_merge_template,161,False,True,Templated,333
+hs_email:502395701467,Sachit Shenai,exact_merge_template,233,True,False,Templated,600
+hs_email:502589751516,George Lim,exact_merge_template,161,False,True,Templated,333
+hs_email:502395066602,Sachit Shenai,exact_merge_template,233,True,False,Templated,600
+hs_email:502608581847,George Lim,exact_merge_template,138,False,True,Templated,331
+hs_email:505172185328,Satchel Sevenau,exact_merge_template,48,True,False,Templated,7
+hs_email:502666889422,Will Sawyer,exact_merge_template,9,False,False,Templated,405
+hs_email:502407773432,George Lim,exact_merge_template,138,False,True,Templated,331
+hs_email:503417089268,George Lim,exact_merge_template,80,False,True,Templated,357
+hs_email:502257250527,George Lim,exact_merge_template,161,False,True,Templated,333
+hs_email:502616856820,Katie Mannion,exact_merge_template,52,False,False,Templated,999
+hs_email:502222007528,George Lim,exact_merge_template,161,False,True,Templated,333
+hs_email:504212677873,Will Sawyer,exact_merge_template,85,False,False,Templated,443
+hs_email:504053574867,Ria Passi,exact_merge_template,123,False,False,Templated,307
+hs_email:504204017890,Will Sawyer,exact_merge_template,85,False,False,Templated,443
+hs_email:502235036874,George Lim,exact_merge_template,81,False,False,Templated,332
+hs_email:505538226424,Hugo Mayne,near_dup_reorder_cta,147,False,False,Templated,284
+hs_email:504176988362,Laura Zhu,near_dup_reorder_cta,29,False,False,Templated,200
+hs_email:503448555751,Callum Marley,near_dup_reorder_cta,4,False,True,Templated,1639
+hs_email:506243313853,Laura Zhu,near_dup_reorder_cta,63,False,False,Templated,244
+hs_email:503383147715,Constantin Victor Beat Ertel,near_dup_reorder_cta,72,False,False,Templated,597
+hs_email:504030845138,Hugo Mayne,near_dup_reorder_cta,147,False,False,Templated,284
+hs_email:504016458983,Hugo Mayne,near_dup_reorder_cta,147,False,False,Templated,284
+hs_email:505538745562,Hugo Mayne,near_dup_reorder_cta,147,False,False,Templated,284
+hs_email:502582831302,Nicolas Fernandez,near_dup_reorder_cta,4,False,False,Templated,2036
+hs_email:504060449983,Joe Turner,near_dup_reorder_cta,147,False,False,Templated,284
+hs_email:505542184170,Hugo Mayne,near_dup_reorder_cta,147,False,False,Templated,284
+hs_email:504668901572,Nicolas Fernandez,near_dup_reorder_cta,7,False,False,Templated,567
+hs_email:502568654054,Nicolas Fernandez,near_dup_reorder_cta,4,False,False,Templated,2036
+hs_email:503384053979,Constantin Victor Beat Ertel,near_dup_reorder_cta,72,False,False,Templated,597
+hs_email:503343342821,Nicolas Fernandez,near_dup_reorder_cta,4,False,False,Templated,1334
+hs_email:504286549220,Hugo Mayne,near_dup_reorder_cta,147,False,False,Templated,284
+hs_email:503474993348,Satchel Sevenau,near_dup_reorder_cta,83,False,False,Templated,27
+hs_email:505167176906,Will Sawyer,near_dup_reorder_cta,12,False,False,Templated,448
+hs_email:503333051583,Laura Zhu,near_dup_reorder_cta,6,False,True,Templated,768
+hs_email:505274372330,Katie Mannion,near_dup_reorder_cta,3,False,False,Templated,1070
+hs_email:505398909177,Constantin Victor Beat Ertel,near_dup_reorder_cta,72,False,False,Templated,597
+hs_email:505504677082,Satchel Sevenau,near_dup_reorder_cta,6,False,True,Templated,51
+hs_email:502760501486,Joe Turner,near_dup_reorder_cta,8,False,False,Templated,1339
+hs_email:504224059613,Hugo Mayne,near_dup_reorder_cta,147,False,False,Templated,284
+hs_email:504085329097,Joe Turner,near_dup_reorder_cta,147,False,False,Templated,284
+hs_email:503330045146,Satchel Sevenau,near_dup_reorder_cta,83,False,False,Templated,27
+hs_email:503348083900,Diego Bracamonte,near_dup_reorder_cta,4,False,False,Templated,323
+hs_email:502767107282,Joe Turner,near_dup_reorder_cta,8,False,False,Templated,274
+hs_email:504030945520,Hugo Mayne,near_dup_reorder_cta,147,False,False,Templated,284
+hs_email:504087700711,Hugo Mayne,near_dup_reorder_cta,147,False,False,Templated,284
+hs_email:503366725825,Constantin Victor Beat Ertel,near_dup_reorder_cta,72,False,False,Templated,597
+hs_email:503511057624,Laura Zhu,near_dup_reorder_cta,29,False,False,Templated,200
+hs_email:502322459840,Nicolas Fernandez,near_dup_reorder_cta,4,False,True,Templated,1079
+hs_email:505548430539,Laura Zhu,near_dup_reorder_cta,5,False,True,Templated,1812
+hs_email:503618452718,Callum Marley,near_dup_reorder_cta,5,False,False,Templated,1662
+hs_email:503266725089,Callum Marley,near_dup_reorder_cta,6,False,False,Templated,678
+hs_email:502220334328,Sachit Shenai,near_dup_reorder_cta,233,True,False,Templated,600
+hs_email:505973200116,Sachit Shenai,near_dup_reorder_cta,7,False,False,Templated,603
+hs_email:505724972252,Constantin Victor Beat Ertel,near_dup_reorder_cta,72,False,False,Templated,597
+hs_email:505804927194,Constantin Victor Beat Ertel,near_dup_reorder_cta,72,False,False,Templated,597
+hs_email:504252963004,Laura Zhu,dynamic_first_line,97,False,True,Templated,214
+hs_email:502961469633,Constantin Victor Beat Ertel,dynamic_first_line,9,False,False,Templated,1249
+hs_email:502666166467,Will Sawyer,dynamic_first_line,9,False,False,Templated,405
+hs_email:503768602835,Constantin Victor Beat Ertel,dynamic_first_line,31,False,True,Templated,598
+hs_email:505157028047,Gauri Swarup,dynamic_first_line,44,False,False,Templated,492
+hs_email:503056222452,Constantin Victor Beat Ertel,dynamic_first_line,9,False,False,Templated,1249
+hs_email:503327841495,Constantin Victor Beat Ertel,dynamic_first_line,20,False,False,Templated,170
+hs_email:505934786787,Constantin Victor Beat Ertel,dynamic_first_line,22,False,False,Templated,166
+hs_email:506118456554,Sachit Shenai,dynamic_first_line,14,False,False,Templated,1573
+hs_email:505877578993,Constantin Victor Beat Ertel,dynamic_first_line,5,False,False,Templated,737
+hs_email:505861307632,Constantin Victor Beat Ertel,dynamic_first_line,4,False,False,Templated,168
+hs_email:504760674519,Gauri Swarup,dynamic_first_line,44,False,False,Templated,492
+hs_email:502885512438,Constantin Victor Beat Ertel,dynamic_first_line,19,False,False,Templated,165
+hs_email:505108989176,Yuvi Ajoomal,dynamic_first_line,68,False,False,Templated,507
+hs_email:505799557369,Sachit Shenai,dynamic_first_line,4,False,False,Templated,1128
+hs_email:505464202456,Hugo Mayne,dynamic_first_line,3,False,False,Templated,1518
+hs_email:503054703846,Constantin Victor Beat Ertel,dynamic_first_line,5,False,False,Templated,737
+hs_email:506117172452,Sachit Shenai,dynamic_first_line,14,False,False,Templated,1573
+hs_email:502780013787,Laura Zhu,dynamic_first_line,268,False,False,Templated,158
+hs_email:504543482074,Joe Turner,dynamic_first_line,22,False,False,Templated,853
+hs_email:502966803696,Constantin Victor Beat Ertel,dynamic_first_line,5,False,False,Templated,737
+hs_email:505022614717,Gauri Swarup,dynamic_first_line,44,False,False,Templated,492
+hs_email:505523911918,Kat Romanska,singleton_or_pair,1,False,False,Personalized,1889
+hs_email:502228125931,Constantin Victor Beat Ertel,singleton_or_pair,1,False,False,Personalized,117
+hs_email:502936991963,Satchel Sevenau,singleton_or_pair,1,False,False,Personalized,1592
+hs_email:502351221979,Constantin Victor Beat Ertel,singleton_or_pair,1,False,False,Personalized,1690
+hs_email:502434247923,Yuvi Ajoomal,singleton_or_pair,1,False,False,Personalized,1039
+hs_email:503366540516,Laura Zhu,singleton_or_pair,1,True,False,Personalized,1787
+hs_email:502779892940,George Lim,singleton_or_pair,1,False,True,Personalized,338
+hs_email:505107364050,Will Sawyer,singleton_or_pair,1,False,False,Personalized,1456
+hs_email:504260822223,Will Sawyer,singleton_or_pair,1,True,False,Personalized,977
+hs_email:502962850024,Yuvi Ajoomal,singleton_or_pair,1,False,False,Personalized,1501
+hs_email:505166215387,Laura Zhu,singleton_or_pair,1,False,True,Personalized,1809
+hs_email:504203295977,Laura Zhu,singleton_or_pair,1,False,False,Templated,797
+hs_email:503323116754,Will Sawyer,singleton_or_pair,1,True,False,Personalized,963
+hs_email:502311629013,Constantin Victor Beat Ertel,singleton_or_pair,1,False,False,Personalized,120
+hs_email:502972532979,Will Sawyer,singleton_or_pair,1,True,False,Personalized,1916
+hs_email:506260628682,Nicolas Fernandez,singleton_or_pair,1,False,False,Personalized,2054
+hs_email:502557180091,Diego Bracamonte,singleton_or_pair,1,False,True,Personalized,2032
+hs_email:502641475828,Will Sawyer,singleton_or_pair,1,False,False,Personalized,938
+hs_email:502343427310,Constantin Victor Beat Ertel,singleton_or_pair,1,False,False,Personalized,1208
+hs_email:503529740513,Satchel Sevenau,singleton_or_pair,1,False,False,Personalized,1601
+hs_email:506084984054,Callum Marley,singleton_or_pair,2,False,False,Personalized,1673
+hs_email:502777840834,Nicolas Fernandez,singleton_or_pair,1,False,False,Personalized,2040
+hs_email:502862738646,Nicolas Fernandez,singleton_or_pair,1,False,False,Personalized,818
+hs_email:502683759862,Will Sawyer,singleton_or_pair,2,False,False,Templated,1908
+hs_email:504971609304,Callum Marley,singleton_or_pair,1,True,False,Personalized,1650
+hs_email:502501187797,Sachit Shenai,singleton_or_pair,1,False,True,Personalized,2080
+hs_email:505635737818,Laura Zhu,singleton_or_pair,1,False,True,Templated,248
+hs_email:502892583098,Gauri Swarup,singleton_or_pair,1,True,False,Personalized,1493
+hs_email:503177976017,Hugo Mayne,singleton_or_pair,1,True,False,Personalized,1561
+hs_email:505282134241,Gauri Swarup,singleton_or_pair,1,False,True,Personalized,583
+hs_email:506057403580,Satchel Sevenau,singleton_or_pair,1,False,True,Personalized,1175
+hs_email:503197404404,Katie Mannion,singleton_or_pair,1,True,False,Personalized,1950
+hs_email:505393559759,Yuvi Ajoomal,singleton_or_pair,1,False,True,Personalized,1506
+hs_email:505524017339,Hugo Mayne,singleton_or_pair,1,True,False,Personalized,1520
+hs_email:503720884428,Constantin Victor Beat Ertel,singleton_or_pair,1,False,False,Personalized,1258
+hs_email:505168192724,Nicolas Fernandez,singleton_or_pair,1,False,False,Personalized,1091
+hs_email:503454160059,Will Sawyer,singleton_or_pair,1,True,False,Personalized,1437
+hs_email:503266544853,George Lim,singleton_or_pair,1,False,False,Personalized,353
+hs_email:502334977250,Nicolas Fernandez,singleton_or_pair,1,True,False,Personalized,1329
+hs_email:502937024708,Gauri Swarup,singleton_or_pair,1,False,True,Templated,1541
+hs_email:503471497413,George Lim,singleton_or_pair,1,False,False,Personalized,360
+hs_email:503340569840,Ria Passi,singleton_or_pair,1,False,True,Personalized,1354
+hs_email:505125579967,Will Sawyer,singleton_or_pair,1,True,False,Personalized,987
+hs_email:506286946499,Sachit Shenai,singleton_or_pair,2,False,False,Templated,1580
+hs_email:505215713503,George Lim,singleton_or_pair,1,False,False,Personalized,1884
+hs_email:506006565075,Constantin Victor Beat Ertel,singleton_or_pair,1,True,False,Personalized,1280
+hs_email:503531446463,Satchel Sevenau,singleton_or_pair,1,False,False,Personalized,1157
+hs_email:502346278094,Constantin Victor Beat Ertel,singleton_or_pair,1,False,False,Personalized,1687
+hs_email:502772759777,Laura Zhu,singleton_or_pair,1,True,False,Personalized,1771
+hs_email:502826511595,Andrew Bell,singleton_or_pair,1,False,False,Personalized,1066
+hs_email:502716184801,Katie Mannion,singleton_or_pair,1,True,False,Personalized,1000
+hs_email:502378883273,Constantin Victor Beat Ertel,singleton_or_pair,1,False,False,Personalized,715
+hs_email:505170437331,Constantin Victor Beat Ertel,singleton_or_pair,1,False,False,Personalized,1277
+hs_email:502895262906,Gauri Swarup,singleton_or_pair,1,True,False,Personalized,1961
+hs_email:505401145530,Hugo Mayne,singleton_or_pair,1,True,False,Personalized,1563
+hs_email:503822349499,Joe Turner,singleton_or_pair,1,False,False,Templated,1844
+hs_email:503457778921,George Lim,singleton_or_pair,1,False,False,Personalized,359
+hs_email:503527320784,Ria Passi,singleton_or_pair,1,False,True,Personalized,863
+hs_email:503220995271,Yuvi Ajoomal,singleton_or_pair,1,True,False,Personalized,1975
+hs_email:502567462113,Constantin Victor Beat Ertel,singleton_or_pair,1,False,False,Personalized,1237
+hs_email:502609092819,George Lim,singleton_or_pair,1,False,True,Personalized,335
+hs_email:503458541803,Andrew Bell,singleton_or_pair,1,True,False,Personalized,1526
+hs_email:503321922781,Gauri Swarup,singleton_or_pair,1,True,False,Personalized,1494
+hs_email:502565658873,Ria Passi,singleton_or_pair,1,False,False,Personalized,1849
+hs_email:506191289591,Laura Zhu,singleton_or_pair,1,False,True,Personalized,1829
+hs_email:503737145548,Satchel Sevenau,singleton_or_pair,1,False,False,Personalized,1166
+hs_email:503384975551,Katie Mannion,singleton_or_pair,1,True,False,Personalized,1010
+hs_email:502556698835,Ria Passi,singleton_or_pair,1,False,True,Personalized,295
+hs_email:502398270702,Callum Marley,singleton_or_pair,1,True,False,Personalized,1656
+hs_email:504606034144,Laura Zhu,singleton_or_pair,1,False,True,Templated,238
+hs_email:505122717883,Nicolas Fernandez,singleton_or_pair,1,False,False,Personalized,2052
+hs_email:502350873828,Constantin Victor Beat Ertel,singleton_or_pair,1,False,False,Personalized,153
+hs_email:503761413348,George Lim,singleton_or_pair,1,False,True,Personalized,909
+hs_email:502944958685,Satchel Sevenau,singleton_or_pair,1,False,False,Personalized,625
+hs_email:502556649669,Constantin Victor Beat Ertel,singleton_or_pair,1,False,False,Personalized,731
+hs_email:502779440322,Laura Zhu,singleton_or_pair,2,True,False,Personalized,242
+hs_email:502989566195,Will Sawyer,singleton_or_pair,1,False,True,Personalized,61
+hs_email:504738082014,Callum Marley,singleton_or_pair,1,False,False,Personalized,93
+hs_email:502263083257,Callum Marley,singleton_or_pair,1,True,False,Templated,675
+hs_email:505710572772,Satchel Sevenau,singleton_or_pair,1,True,False,Personalized,1617
+hs_email:502340007119,Andrew Bell,singleton_or_pair,1,False,False,Personalized,2009
+hs_email:502337547470,Andrew Bell,singleton_or_pair,1,False,False,Personalized,2008
+hs_email:504025494732,Callum Marley,singleton_or_pair,1,False,True,Personalized,1648
+hs_email:503032075490,Andrew Bell,singleton_or_pair,1,False,False,Personalized,529
+hs_email:502314174675,Nicolas Fernandez,singleton_or_pair,2,False,True,Templated,808
+hs_email:502759314654,Laura Zhu,singleton_or_pair,1,True,False,Personalized,190
+hs_email:505578076405,Nicolas Fernandez,singleton_or_pair,1,True,False,Templated,1092
+hs_email:502462037240,Hugo Mayne,singleton_or_pair,1,True,False,Personalized,1510
+hs_email:502607077578,Yuvi Ajoomal,singleton_or_pair,1,True,False,Personalized,1044
+hs_email:502517788918,Callum Marley,singleton_or_pair,1,False,True,Personalized,70
+hs_email:503000630503,Kat Romanska,singleton_or_pair,1,True,False,Personalized,1410
+hs_email:505292794046,Will Sawyer,singleton_or_pair,1,True,False,Personalized,1941
+hs_email:502332956889,Nicolas Fernandez,singleton_or_pair,1,True,False,Personalized,2035
+hs_email:503490324719,Constantin Victor Beat Ertel,singleton_or_pair,1,True,False,Personalized,1251
+hs_email:502269964534,Hugo Mayne,singleton_or_pair,1,True,False,Personalized,1550
+hs_email:503762841807,Constantin Victor Beat Ertel,singleton_or_pair,1,True,False,Personalized,1267
+hs_email:505240918210,Katie Mannion,singleton_or_pair,1,True,False,Personalized,481
+hs_email:502901991623,Will Sawyer,singleton_or_pair,1,True,False,Personalized,418
+hs_email:504271408329,Katie Mannion,singleton_or_pair,1,True,False,Personalized,1023
+hs_email:503018227910,Will Sawyer,singleton_or_pair,1,True,False,Personalized,953
+hs_email:502197845182,Hugo Mayne,singleton_or_pair,1,True,False,Personalized,584
+hs_email:506118284479,Hugo Mayne,singleton_or_pair,1,True,False,Personalized,1061
+hs_email:502208011489,Katie Mannion,singleton_or_pair,1,True,False,Personalized,993
