@@ -7,6 +7,21 @@ build anything into the pipeline or dashboard.
 
 ---
 
+## How to read this brief
+
+**Fixed** (do not deviate): the GOAL (§2), the DEFINITION of templated vs
+personalized (§4.2), the hard constraints (§7), and the deliverable (§6.8).
+
+**Just leads** (verify, improve, or discard): every normalization step,
+similarity measure, threshold, technique, and number named below comes from a
+~20-minute mini-analysis. It is NOT a specification. **You own the method.**
+If your own analysis finds a cleaner representation or a better rule, use it
+and explain why. The specifics are here to save you time and flag known traps —
+not to box you in. When two paths conflict, optimize for reproducing the
+template-family ground truth (§6.4), not for matching what this doc suggested.
+
+---
+
 ## 1. Project context (30 seconds)
 
 Repo: `/Users/borja/builds/CA_central` — a data pipeline + Streamlit dashboard
@@ -225,16 +240,12 @@ evaluation time, not of the email alone. Your rulebook must specify:
      each normalization step (quoted-chain strip, signature strip, disclaimer,
      each merge-field blank, greeting strip) toggled on/off; AND the
      **similarity measure used to group emails into template families** —
-     likely the central knob. Test several FLAVORS, and let the corpus pick
-     the winner (don't hard-code one). **CRITICAL PREREQUISITE:** any
-     similarity measure (especially char-%) computed on RAW bodies is broken —
-     the shared signature + legal disclaimer inflate it, and quoted reply
-     chains corrupt it both ways (two emails quoting the SAME original look
-     similar even when the new text differs; the SAME message quoting
-     different originals looks different). So the §3 strips (quoted chain,
-     signature, disclaimer, merge values) MUST run BEFORE the similarity is
-     computed, and the ablation must explicitly show that skipping a strip
-     degrades the measure. Flavors to test, all on the normalized core text:
+     likely the central knob — choose or invent whatever the variation you
+     actually find demands. Known trap to account for (your ablation will
+     confirm it): similarity on RAW bodies tends to break — shared
+     signature/disclaimer inflate it and quoted reply chains corrupt it both
+     ways — so normalization probably needs to precede the similarity step.
+     Obvious candidate measures, not a checklist:
        * character-level % identical (difflib ratio / Levenshtein) — catches
          merge-field templates cheaply, but fragile to sentence reordering and
          to a long dynamic/AI first line tanking the score;
