@@ -147,6 +147,38 @@ def test_meeting_buckets_reconcile(cur, windows):
                     (r["ca_name"], bucket, got, r[col]))
 
 
+def test_gong_split_reconciles(cur, windows):
+    """The split 'unknown' bar (migration 009): held-(Gong-verified) plus
+    remaining-unknown must equal rep_scorecard's meetings_unknown — the split
+    relabels, it never changes a count. Both halves' drill cards must count
+    exactly what the displayed segments show, team-wide and per CA."""
+    def gong_total(start, end, rep, verified):
+        cur.execute(queries.DRILL_GONG_SPLIT, (start, end, rep, rep, verified))
+        rows = cur.fetchall()
+        return rows[0][-1] if rows else 0
+
+    for start, end in windows:
+        sc = _scorecard(cur, start, end)
+        cur.execute(queries.GONG_VERIFIED, (start, end))
+        gv = dict(cur.fetchall())          # what the pages draw the segment from
+        for r in sc:
+            want_v = int(gv.get(r["ca_name"], 0))
+            got_v = gong_total(start, end, r["ca_name"], True)
+            got_u = gong_total(start, end, r["ca_name"], False)
+            assert got_v == want_v, (
+                "%s gong-verified %s..%s: card %d != segment %d" %
+                (r["ca_name"], start, end, got_v, want_v))
+            assert got_v + got_u == r["meetings_unknown"], (
+                "%s split %s..%s: %d + %d != scorecard unknown %d" %
+                (r["ca_name"], start, end, got_v, got_u, r["meetings_unknown"]))
+        want_team_v = sum(int(gv.get(r["ca_name"], 0)) for r in sc)
+        want_team_unknown = sum(r["meetings_unknown"] for r in sc)
+        got_team_v = gong_total(start, end, "(all)", True)
+        got_team_u = gong_total(start, end, "(all)", False)
+        assert got_team_v == want_team_v
+        assert got_team_v + got_team_u == want_team_unknown
+
+
 def test_channel_vocabulary_is_complete(cur):
     """ALL_CHANNELS must cover every channel that can carry a COUNTED row —
     a channel added to the model but not the map would silently vanish from

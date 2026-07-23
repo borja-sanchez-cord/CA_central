@@ -81,6 +81,18 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: python ingestion/ingest_deals.py
 
+      # Gong recordings mirror (Ray ask #1): full re-read of Gong-created call
+      # records (~700 paged calls over the whole calls object — minutes), so
+      # QUEUED->COMPLETED status flips self-heal. Feeds ONLY migration 009's
+      # meeting verification view; nothing in the verified model reads it.
+      # Independent: a failure here never blocks identities/model.
+      - name: Sync Gong recordings
+        if: always()
+        env:
+          HUBSPOT_PRIVATE_APP_TOKEN: ${{ secrets.HUBSPOT_PRIVATE_APP_TOKEN }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: python ingestion/ingest_gong_calls.py
+
       # Phase 2: rebuild the resolved identities from the fresh raw layer.
       # Runs even if ingestion partially failed (yesterday's raw data still
       # deserves fresh identities); its own guard rails abort on a bad roster.

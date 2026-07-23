@@ -27,6 +27,9 @@ rh_rep = int(rh[rh.ca_name == rep].rh.sum()) if len(rh) else 0
 mb = db.q(queries.MEETING_BREAKDOWN, (start, end))
 mb_row = mb[mb.ca_name == rep]
 m_new = int(mb_row.iloc[0].meetings_new_stakeholder) if len(mb_row) else 0
+# Gong-verified held (migration 009) — display-side split of 'unknown'
+gv = db.q(queries.GONG_VERIFIED, (start, end))
+gv_rep = int(gv[gv.ca_name == rep].gong_verified.sum()) if len(gv) else 0
 
 cov_pct = 0 if pd.isna(r.coverage_pct) else r.coverage_pct
 ui.kpi_row([
@@ -42,11 +45,12 @@ ui.kpi_row([
      "sub": "%d con / %d msg / %d other" % (r.li_connect, r.li_message, r.li_other),
      "help": ui.DEFS["linkedin"]},
     {"label": "Meetings", "value": int(r.meetings_booked),
-     "sub": "%d held / %d canc / %d sch / %d unk | %d via RevHero" % (
-         r.meetings_held, r.meetings_canceled, r.meetings_scheduled,
-         r.meetings_unknown, rh_rep),
-     "help": ui.DEFS["meetings_booked"] + " 'Via RevHero' = auto-booked by the Revenue "
-             "Hero inbound scheduler — still counted today."},
+     "sub": "%d held / %d Gong-held / %d canc / %d sch / %d unk | %d via RevHero" % (
+         r.meetings_held, gv_rep, r.meetings_canceled, r.meetings_scheduled,
+         r.meetings_unknown - gv_rep, rh_rep),
+     "help": ui.DEFS["meetings_booked"] + " 'Gong-held': " + ui.DEFS["meetings_gong_verified"]
+             + " 'Via RevHero' = auto-booked by the Revenue Hero inbound scheduler "
+             "— still counted today."},
     {"label": "New meetings", "value": m_new,
      "sub": "of %d booked" % int(r.meetings_booked),
      "help": ui.DEFS["meetings_new_stakeholder"]},

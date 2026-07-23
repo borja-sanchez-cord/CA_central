@@ -111,6 +111,20 @@ MEETINGS_RH = """
     group by ca_name
 """
 
+# Gong-verified held (migration 009, Ray ask #1): unknown-outcome meetings
+# where a COMPLETED Gong recording exists in the booked slot with a shared
+# contact. Display-side split of the 'unknown' bucket — Gong-verified +
+# remaining unknown always sum to rep_scorecard's meetings_unknown, so no
+# counted number changes anywhere (tests/test_drill_reconciles.py enforces).
+GONG_VERIFIED = """
+    select ca_name, count(*) as gong_verified
+    from meeting_gong_verification
+    where activity_date between %s and %s
+      and coalesce(outcome, '?')
+          not in ('COMPLETED','CANCELED','SCHEDULED','RESCHEDULED')
+    group by ca_name
+"""
+
 # Dillon fix #22 (migration 006): each counted meeting bucketed as
 # new_stakeholder (first meeting with that ACCOUNT in a rolling 60 days) /
 # follow_up / no_account. Buckets are disjoint and sum to meetings_booked —
@@ -165,6 +179,26 @@ DRILL_ROWS = """
            or (%s = 'scheduled' and coalesce(outcome, '?')
                in ('SCHEDULED','RESCHEDULED'))
            or coalesce(outcome, '?') = %s)
+    order by occurred_at desc
+    limit 8
+"""
+
+# Peek for the two halves of the split unknown segment: verified=True ->
+# unknown-outcome meetings WITH a Gong recording ("held (Gong-verified)"),
+# verified=False -> the rest (still unknown). Same shape as DRILL_ROWS.
+# Params: start, end, rep, rep, verified(bool)
+DRILL_GONG_SPLIT = """
+    select activity_date, ca_name, channel, account_name, subject,
+           contact_email, occurred_at, count(*) over () as total
+    from activity_flat af
+    where counts and channel = 'meeting'
+      and activity_date between %s and %s
+      and ca_name in (select name from dim_ca where is_active)
+      and (%s = '(all)' or ca_name = %s)
+      and coalesce(outcome, '?')
+          not in ('COMPLETED','CANCELED','SCHEDULED','RESCHEDULED')
+      and exists (select 1 from meeting_gong_verification v
+                  where v.activity_id = af.activity_id) = %s
     order by occurred_at desc
     limit 8
 """
