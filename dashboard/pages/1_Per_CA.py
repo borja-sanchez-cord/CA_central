@@ -51,7 +51,7 @@ ui.kpi_row([
      "sub": "of %d booked" % int(r.meetings_booked),
      "help": ui.DEFS["meetings_new_stakeholder"]},
     {"label": "Coverage", "value": "%.0f%%" % cov_pct,
-     "sub": "%d of %d owned touched" % (r.owned_touched, r.accounts_owned),
+     "sub": "%d touched out of %d owned" % (r.owned_touched, r.accounts_owned),
      "help": ui.DEFS["coverage_pct"]},
 ])
 st.write("")
