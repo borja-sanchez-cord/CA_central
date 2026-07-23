@@ -76,7 +76,7 @@ DEFS = {
     "linkedin": "LinkedIn steps run inside AmpleMarket sequences only. We cannot see native LinkedIn (manual messages, InMails) — there's no feed for it.",
     "other": "Sequence steps of an unrecognised type (custom AmpleMarket to-do steps — the tool logs only that they were done).",
     "other_outreach": "Sequence steps of unrecognised type (could be WhatsApp, research, anything).",
-    "meetings_booked": "Every meeting booked in the window (not held). Outcome is now known for ~60% (rep-logged + Gong-verified) — read with the held/Gong-held/canceled/unknown split.",
+    "meetings_booked": "Every meeting booked in the window (not held). Most now have a known outcome — the rep marked it, or Gong verified it; the rest stay unknown. Read with the held / Gong-held / canceled / unknown split.",
     "meetings_held": "The rep marked the meeting as happened in HubSpot.",
     "meetings_canceled": "The rep marked the meeting as canceled in HubSpot.",
     "meetings_scheduled": "Upcoming — marked scheduled or rescheduled in HubSpot.",

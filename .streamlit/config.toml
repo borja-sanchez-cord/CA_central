@@ -1,12 +1,14 @@
-# Dashboard theme — dark mode (softened contrast), monospace, Encord accents.
+# Dashboard theme — dark mode (softened contrast), SF Pro, Encord accents.
 # Purple rgb(98,35,233) = interactive/selected; lime rgb(179,226,73) via ui.py.
+# Font: Apple system stack -> renders as SF Pro in Safari/Chrome on Mac (all
+# viewers), OS sans elsewhere. SF Pro can't be legally hosted, so no fontFace.
 [theme]
 base = "dark"
 primaryColor = "#6223E9"
 backgroundColor = "#1D222C"
 secondaryBackgroundColor = "#272D39"
 textColor = "#E9EAEE"
-font = "monospace"
+font = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Arial, sans-serif'
 
 [browser]
 gatherUsageStats = false

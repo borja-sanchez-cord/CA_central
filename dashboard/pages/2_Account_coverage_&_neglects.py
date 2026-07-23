@@ -13,7 +13,7 @@ first, last = ui.setup(
 start, end, label = ui.window_pills(first, last)
 
 # --- accounts by touchpoint volume (distribution per CA) ------------------------
-st.subheader("Accounts by touchpoint volume")
+st.subheader("Touchpoint concentration")
 BUCKETS = [("1-9", 1, 9), ("10-24", 10, 24), ("25-49", 25, 49),
            ("50-99", 50, 99), ("100+", 100, 10**9)]
 dv = ui.active_only(db.q(queries.REP_ACCOUNTS_ALL, (start, end)))
