@@ -34,6 +34,10 @@ n_weeks = {"Last 4 weeks": 4, "Last 12 weeks": 12}.get(win)
 if n_weeks:
     keep = sorted(wk.week_start.unique())[-n_weeks:]
     wk = wk[wk.week_start.isin(keep)]
+# mark the latest (still-running) week with a * on its label — explained under
+# the chart, so the "partial week" caveat rides the axis instead of a footer
+_partial = wk.week_start.max()
+wk.loc[wk.week_start == _partial, "week"] = wk.loc[wk.week_start == _partial, "week"] + " *"
 reps = sorted(wk.ca_name.unique())
 sel = c2.multiselect("Who", [TEAM] + reps, default=[TEAM])
 if ui.DEFS.get(measure):
@@ -77,7 +81,7 @@ if frames:
         use_container_width=True, key="tr_pick",
         on_select="rerun" if drillable else "ignore")
     ui.centered_legend(list(zip(who_domain, palette[:len(who_domain)])))
-    st.caption("Whole weeks only (Mon-Sun) — the latest week is partial until Sunday."
+    st.caption("\\* current week — partial until Sunday (Mon–Sun weeks)."
                + ("" if drillable else " Click-through isn't available for this measure "
                   "(it's a ratio or a distinct count, not a set of rows)."))
     picked = ui.read_pick(ev) if drillable else None
@@ -102,6 +106,8 @@ if frames:
                       key="tr_card")
 
 with st.expander("Table — weeks × CAs"):
+    st.caption("Each cell = **%s** for that CA, that week."
+               % ui.MEASURE_LABELS.get(measure, measure))
     pv = wk.pivot_table(index="ca_name", columns="week", values=measure)
     pv = pv[[w for w in order if w in pv.columns]]
     st.dataframe(pv, use_container_width=True)

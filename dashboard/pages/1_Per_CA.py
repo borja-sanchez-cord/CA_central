@@ -7,9 +7,7 @@ import db
 import queries
 import ui
 
-first, last = ui.setup(
-    "Per CA",
-    "One CA's activity: what they did, how it's trending, and which accounts it went into.")
+first, last = ui.setup("Per CA", "")   # charts tell the story — no subtitle
 
 reps = db.q(queries.REPS)["name"].tolist()   # active CAs only (departed hidden)
 c1, _ = st.columns([1.4, 2])
@@ -45,12 +43,11 @@ ui.kpi_row([
      "sub": "%d con / %d msg / %d other" % (r.li_connect, r.li_message, r.li_other),
      "help": ui.DEFS["linkedin"]},
     {"label": "Meetings", "value": int(r.meetings_booked),
-     "sub": "%d held / %d Gong-held / %d canc / %d sch / %d unk | %d via RevHero" % (
-         r.meetings_held, gv_rep, r.meetings_canceled, r.meetings_scheduled,
-         r.meetings_unknown - gv_rep, rh_rep),
-     "help": ui.DEFS["meetings_booked"] + " 'Gong-held': " + ui.DEFS["meetings_gong_verified"]
-             + " 'Via RevHero' = auto-booked by the Revenue Hero inbound scheduler "
-             "— still counted today."},
+     "sub": "%d held · %d unknown" % (r.meetings_held + gv_rep, r.meetings_unknown - gv_rep),
+     "help": ui.DEFS["meetings_booked"]
+             + " Held here = rep-logged (%d) + Gong-verified (%d). Also %d canceled, %d scheduled, "
+               "%d via RevHero (auto-booked by the inbound scheduler)." % (
+                 r.meetings_held, gv_rep, r.meetings_canceled, r.meetings_scheduled, rh_rep)},
     {"label": "New meetings", "value": m_new,
      "sub": "of %d booked" % int(r.meetings_booked),
      "help": ui.DEFS["meetings_new_stakeholder"]},
@@ -70,13 +67,19 @@ tl = wk[["week", "week_start"] + trend_cols].melt(
 tl["measure"] = tl.m.map(ui.MEASURE_LABELS)
 order = [w for w in wk.sort_values("week_start").week.unique()]
 # click a dot -> peek at that week's rows for this measure (drill-through)
-ev = st.altair_chart(
-    ui.trend_chart(tl, "count", "measure", order,
-                   [ui.MEASURE_LABELS[c] for c in trend_cols],
-                   [ui.MEASURE_COLORS[c] for c in trend_cols], height=280,
-                   pick=ui.pick_param(["week", "week_start", "m"])),
-    use_container_width=True, key="wk_pick", on_select="rerun")
-ui.centered_legend([(ui.MEASURE_LABELS[c], ui.MEASURE_COLORS[c]) for c in trend_cols])
+# chart left, hover-legend right — hover any measure to see its definition
+# (same DEFS as the Team overview headers)
+wk_c, wk_l = st.columns([6, 1])
+with wk_c:
+    ev = st.altair_chart(
+        ui.trend_chart(tl, "count", "measure", order,
+                       [ui.MEASURE_LABELS[c] for c in trend_cols],
+                       [ui.MEASURE_COLORS[c] for c in trend_cols], height=280,
+                       pick=ui.pick_param(["week", "week_start", "m"])),
+        use_container_width=True, key="wk_pick", on_select="rerun")
+with wk_l:
+    ui.legend_help([(ui.MEASURE_LABELS[c], ui.MEASURE_COLORS[c], ui.DEFS[c])
+                    for c in trend_cols])
 st.caption("Latest week is partial until Sunday.")
 picked = ui.read_pick(ev)
 if picked:
@@ -152,9 +155,13 @@ if len(acc_v):
             "touchpoints": st.column_config.ProgressColumn(
                 "Touchpoints", format="%d", min_value=0,
                 max_value=int(acc_v.touchpoints.max()), help=ui.DEFS["touchpoints"]),
-            "pct_of_touchpoints": st.column_config.NumberColumn("% of total", format="%.1f%%"),
-            "people_touched": st.column_config.NumberColumn("People"),
-            "owned_by_this_rep": st.column_config.CheckboxColumn("Owned by this CA"),
+            "pct_of_touchpoints": st.column_config.NumberColumn(
+                "% of total", format="%.1f%%",
+                help="This account's share of the CA's counted touchpoints in the window."),
+            "people_touched": st.column_config.NumberColumn(
+                "People", help="Distinct people at this account with ≥1 counted activity."),
+            "owned_by_this_rep": st.column_config.CheckboxColumn(
+                "Their account", help="Ticked when this CA is the HubSpot owner of the account."),
             "icp_tier": st.column_config.TextColumn(
                 "Tier (validated)",
                 help="HubSpot's validated tier field — never the automated one."),
@@ -163,7 +170,7 @@ if len(acc_v):
 
 # --- drill to people at one account ------------------------------------------
 st.subheader("Drill into one account")
-target = st.selectbox("Pick an account to see exactly who %s contacted there" % rep,
+target = st.selectbox("Pick an account to see exactly who **%s** contacted there" % rep,
                       acc_v.account_name.tolist())
 st.markdown("**Who %s contacted at %s**" % (rep, target))
 ppl = db.q(queries.ACCOUNT_CONTACTS, (start, end, rep, target))

@@ -75,7 +75,6 @@ with c1:
         ).properties(height=h)),
         use_container_width=True)
     ui.centered_legend([("New meetings", ui.PURPLE), ("SAOs", ui.LIME)])
-    st.caption("New meetings vs the SAOs they'll eventually produce (SAOs lag outreach).")
 with c2:
     # deliberately NOT purple/lime — those mean new-meetings/SAOs on the left
     # chart; reusing them here (where the split is below-target / target-hit)
@@ -119,33 +118,36 @@ styled = (show.sort_values("saos", ascending=False)
               .style.apply(ui.family_tints(show.columns, FAMS), axis=None)
               .map(lambda v: "color: %s; font-weight: 700" % ui.RAMP_RED
                              if v == "*" else "", subset=["ramp"]))
-st.dataframe(
-    styled, hide_index=True, use_container_width=True,
-    column_config={
-        "ca_name": st.column_config.TextColumn("CA", pinned=True),
-        "ramp": st.column_config.TextColumn("", width="small",
-                                            help="* = ramping"),
-        "total_counted": st.column_config.NumberColumn("Activities", help=ui.DEFS["total_counted"]),
-        "emails": "Emails", "dials": "Dials", "conversations": "Convos",
-        "linkedin": "LinkedIn",
-        "meetings_booked": st.column_config.NumberColumn("Meetings booked",
-                                                         help=ui.DEFS["meetings_booked"]),
-        "meetings_new_stakeholder": st.column_config.NumberColumn(
-            "New meetings", help=ui.DEFS["meetings_new_stakeholder"]),
-        "saos": st.column_config.NumberColumn("SAOs", help=ui.DEFS["saos"]),
-        "sao_target": st.column_config.NumberColumn("Target", help=ui.DEFS["sao_target"]),
-        "attainment_pct": st.column_config.NumberColumn("Attainment", format="%.0f%%"),
-        "saos_inbound": "Inbound SAO", "saos_event": "Event SAO",
-        "saos_outbound": st.column_config.NumberColumn("Outbound SAO",
-                                                       help=ui.DEFS["saos_outbound"]),
-        # "localized" groups thousands with commas and (on an int column) shows
-        # no decimals; the $ lives in the header (printf "$%,d" is NOT honored —
-        # Streamlit's number format has no comma flag, verified live 2026-07-21).
-        "pipeline_usd": st.column_config.NumberColumn("Pipeline $", format="localized"),
-    })
-st.caption("Purple tint = activity (our data)")
-st.caption("Lime tint = results (Ray's tracker)")
-st.caption(":red[\\*] = ramping")
+# full numeric detail lives here — collapsed by default so the two charts
+# above carry the story; open it when a leader wants the underlying figures.
+with st.expander("Full per-CA table", expanded=False):
+    st.dataframe(
+        styled, hide_index=True, use_container_width=True,
+        column_config={
+            "ca_name": st.column_config.TextColumn("CA", pinned=True),
+            "ramp": st.column_config.TextColumn("", width="small",
+                                                help="* = ramping"),
+            "total_counted": st.column_config.NumberColumn("Activities", help=ui.DEFS["total_counted"]),
+            "emails": "Emails", "dials": "Dials", "conversations": "Convos",
+            "linkedin": "LinkedIn",
+            "meetings_booked": st.column_config.NumberColumn("Meetings booked",
+                                                             help=ui.DEFS["meetings_booked"]),
+            "meetings_new_stakeholder": st.column_config.NumberColumn(
+                "New meetings", help=ui.DEFS["meetings_new_stakeholder"]),
+            "saos": st.column_config.NumberColumn("SAOs", help=ui.DEFS["saos"]),
+            "sao_target": st.column_config.NumberColumn("Target", help=ui.DEFS["sao_target"]),
+            "attainment_pct": st.column_config.NumberColumn("Attainment", format="%.0f%%"),
+            "saos_inbound": "Inbound SAO", "saos_event": "Event SAO",
+            "saos_outbound": st.column_config.NumberColumn("Outbound SAO",
+                                                           help=ui.DEFS["saos_outbound"]),
+            # "localized" groups thousands with commas and (on an int column) shows
+            # no decimals; the $ lives in the header (printf "$%,d" is NOT honored —
+            # Streamlit's number format has no comma flag, verified live 2026-07-21).
+            "pipeline_usd": st.column_config.NumberColumn("Pipeline $", format="localized"),
+        })
+    st.caption("Purple tint = activity (our data)")
+    st.caption("Lime tint = results (Ray's tracker)")
+    st.caption(":red[\\*] = ramping")
 
 with st.expander("One CA, month by month (incl. months before activity tracking)"):
     rep = st.selectbox("CA", sorted(sao[sao.rep_name.isin(ms.ca_name)].rep_name.unique()))

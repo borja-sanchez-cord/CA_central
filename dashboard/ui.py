@@ -66,25 +66,28 @@ FAMILY = {
 }
 
 DEFS = {
-    "auto_email": "Automated email — a sequence tool (AmpleMarket/Apollo) sent it on the rep's behalf.",
-    "manual_email": "Manual email — a human actually wrote and sent it (best-effort label; see ontology note).",
+    "auto_email": "Sequence tool (AmpleMarket/Apollo) sent it for the rep. From HubSpot. Note: a manual email sent *through* the tool still counts as auto.",
+    "manual_email": "A human wrote and sent it — we know from HubSpot's manual/auto flag. Imperfect: a sequenced send can slip in as auto.",
     "emails": "Automated + manual emails added together.",
     "inbound_replies": "Emails prospects sent to the CA (bounces/auto-replies removed).",
     "dials": "Phone dials from AmpleMarket's dialer, answered or not. Dials outside it are invisible.",
-    "pursuits": "One person chased by phone — repeated dials within 30 min bundle into one pursuit.",
-    "conversations": "Dials where a real human answered (the tool's own flag).",
-    "linkedin": "LinkedIn steps completed inside AmpleMarket sequences ONLY — native LinkedIn is not captured.",
+    "pursuits": "One person chased by phone — repeat dials within 30 min count as one pursuit. From AmpleMarket's dialer.",
+    "conversations": "Dials AmpleMarket marked as connected — a real human picked up.",
+    "linkedin": "LinkedIn steps run inside AmpleMarket sequences only. We cannot see native LinkedIn (manual messages, InMails) — there's no feed for it.",
     "other": "Sequence steps of an unrecognised type (custom AmpleMarket to-do steps — the tool logs only that they were done).",
     "other_outreach": "Sequence steps of unrecognised type (could be WhatsApp, research, anything).",
-    "meetings_booked": "Every meeting in the window — booked, NOT held. Outcome is logged on only ~20%, so always read with the held/canceled/scheduled/unknown split.",
-    "meetings_unknown": "Booked with no outcome logged AND no Gong recording found. Never assume held.",
+    "meetings_booked": "Every meeting booked in the window (not held). Outcome is now known for ~60% (rep-logged + Gong-verified) — read with the held/Gong-held/canceled/unknown split.",
+    "meetings_held": "The rep marked the meeting as happened in HubSpot.",
+    "meetings_canceled": "The rep marked the meeting as canceled in HubSpot.",
+    "meetings_scheduled": "Upcoming — marked scheduled or rescheduled in HubSpot.",
+    "meetings_unknown": "No outcome logged and no Gong recording — so we can't tell if it happened. NOT the same as a no-show.",
     "meetings_gong_verified": "The rep logged no outcome, but a completed Gong recording of the meeting exists — same time slot, same contact — so it demonstrably happened. Carved out of 'unknown' (the two always sum to the old unknown count). Nightly from HubSpot's Gong integration.",
-    "meetings_new_stakeholder": "First meeting with that ACCOUNT in a rolling 60 days. A colleague met soon after the first conversation doesn't re-count; a canceled first meeting still holds the slot. History starts Jul 6 2026, so early months naturally skew 'new'.",
+    "meetings_new_stakeholder": "First meeting with an account in a rolling 60 days — a follow-up or a colleague's later meeting doesn't re-count.",
     "meetings_follow_up": "A meeting on an account already met within the previous 60 days — booked and visible, but not a new conversation.",
     "meetings_no_account": "No attendee we can tie to a known account — still counted, shown honestly (~5% of meetings).",
     "total_counted": "Every counted activity for the rep, each counted once.",
-    "accounts_touched": "Distinct companies with at least one counted activity (misses the ~60% of activity with no matched company).",
-    "contacts_touched": "Distinct people with at least one counted activity (same ~60% caveat).",
+    "accounts_touched": "Distinct companies with at least one counted activity. ~5% of activity has no company matched (not shown here).",
+    "contacts_touched": "Distinct people with at least one counted activity. ~3% of activity has no contact matched.",
     "accounts_owned": "Companies where this rep is the HubSpot target-account owner.",
     "owned_touched": "Of the rep's owned accounts, how many they PERSONALLY touched in the window.",
     "coverage_pct": "Owned touched / accounts owned — likely a slight under-count; compare reps, watch the trend. Counts ALL owned accounts, including customers / open deals / recently lost the CA may be right to leave alone — NOT deal-aware like the neglected flag.",
@@ -159,8 +162,9 @@ def setup(title, explainer):
     left, right = st.columns([3, 1.5])
     with left:
         st.title(title)
-        st.markdown('<p class="explain">%s</p>' % html.escape(explainer),
-                    unsafe_allow_html=True)
+        if explainer:   # some pages let the charts tell the story — no subtitle
+            st.markdown('<p class="explain">%s</p>' % html.escape(explainer),
+                        unsafe_allow_html=True)
     with right:
         st.markdown(_status_pills(), unsafe_allow_html=True)
 
@@ -285,6 +289,22 @@ def centered_legend(items):
         for l, c in items)
     st.markdown('<div style="text-align:center;font-size:.8rem;color:%s;margin:-4px 0 2px;">%s</div>'
                 % (TEXT_DIM, chips), unsafe_allow_html=True)
+
+
+def legend_help(items):
+    """A vertical swatch legend for a chart's right-hand column, where hovering
+    an item reveals its definition (native title tooltip). Feeds on the same
+    DEFS as the table headers, so the legend teaches the exact same words.
+    items: (label, color, definition) triples."""
+    rows = "".join(
+        '<div title="%s" style="white-space:nowrap;margin:3px 0;cursor:help;">'
+        '<span style="display:inline-block;width:11px;height:11px;background:%s;'
+        'border-radius:2px;vertical-align:middle;margin-right:7px;"></span>'
+        '<span style="vertical-align:middle;border-bottom:1px dotted %s;">%s</span></div>'
+        % (html.escape(defn, quote=True), c, TEXT_DIM, html.escape(l))
+        for l, c, defn in items)
+    st.markdown('<div style="font-size:.8rem;color:#C9CDD6;padding-top:6px;">%s</div>'
+                % rows, unsafe_allow_html=True)
 
 
 def channel_legend():
@@ -459,7 +479,8 @@ def trend_chart(df, value_col, series_col, order, domain, rng, height=320,
         strokeWidth=1.4, strokeOpacity=0.5,
         point=alt.OverlayMarkDef(size=150, filled=True, opacity=1),
     ).encode(
-        x=alt.X("week:O", sort=order, title=None, axis=alt.Axis(labelAngle=0)),
+        x=alt.X("week:O", sort=order, title=None,
+                axis=alt.Axis(labelAngle=0, labelLimit=1000)),  # don't clip the " *"
         y=alt.Y("%s:Q" % value_col, title=None),
         color=alt.Color("%s:N" % series_col, scale=scale, legend=None),
         tooltip=["week", series_col, value_col])

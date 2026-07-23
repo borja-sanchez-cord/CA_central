@@ -83,13 +83,13 @@ st.dataframe(
         "other_outreach": st.column_config.NumberColumn("Other", help=ui.DEFS["other"]),
         "meetings_booked": st.column_config.NumberColumn("Mtg booked", help=ui.DEFS["meetings_booked"]),
         "meetings_new_stakeholder": st.column_config.NumberColumn("New meetings", help=ui.DEFS["meetings_new_stakeholder"]),
-        "meetings_held": st.column_config.NumberColumn("Mtg held"),
+        "meetings_held": st.column_config.NumberColumn("Mtg held", help=ui.DEFS["meetings_held"]),
         "meetings_gong_verified": st.column_config.NumberColumn(
             "Mtg Gong-held", help=ui.DEFS["meetings_gong_verified"]),
-        "meetings_canceled": st.column_config.NumberColumn("Mtg canceled"),
-        "meetings_scheduled": st.column_config.NumberColumn("Mtg sched"),
+        "meetings_canceled": st.column_config.NumberColumn("Mtg canceled", help=ui.DEFS["meetings_canceled"]),
+        "meetings_scheduled": st.column_config.NumberColumn("Mtg sched", help=ui.DEFS["meetings_scheduled"]),
         "meetings_unknown": st.column_config.NumberColumn("Mtg unknown", help=ui.DEFS["meetings_unknown"]),
-        "accounts_touched": st.column_config.NumberColumn("Accts touched", help=ui.DEFS["accounts_touched"]),
+        "accounts_touched": st.column_config.NumberColumn("Companies", help=ui.DEFS["accounts_touched"]),
         "contacts_touched": st.column_config.NumberColumn("People touched", help=ui.DEFS["contacts_touched"]),
         "accounts_owned": st.column_config.NumberColumn("Owned", help=ui.DEFS["accounts_owned"]),
         "owned_touched": st.column_config.NumberColumn("Owned touched", help=ui.DEFS["owned_touched"]),
@@ -139,17 +139,27 @@ mm["status"] = mm.status.map({
     "meetings_scheduled": "scheduled", "meetings_canceled": "canceled",
     "meetings_unknown": "unknown"})
 M_DOMAIN = ["held", "held (Gong-verified)", "scheduled", "canceled", "unknown"]
-picked = ui.drill_chart(
-    alt.Chart(mm).mark_bar().encode(
-        x=alt.X("count:Q", title="Meetings"),
-        y=alt.Y("ca_name:N", sort="-x", title=None),
-        color=alt.Color("status:N", title=None,
-                        scale=alt.Scale(domain=M_DOMAIN,
-                                        range=["#A3BE8C", "#6E8B3D", "#7DA0CA",
-                                               "#CC7A6F", "#6B7280"])),
-        tooltip=["ca_name", "status", "count"],
-    ).properties(height=26 * n),
-    key="mtg_pick", fields=["ca_name", "status"])
+M_RANGE = ["#A3BE8C", "#6E8B3D", "#7DA0CA", "#CC7A6F", "#6B7280"]
+# chart left, hover-legend right — the legend carries the definitions that used
+# to sit in the caption below (hover any item), same pattern as Per CA's trend.
+mtg_c, mtg_l = st.columns([6, 1])
+with mtg_c:
+    picked = ui.drill_chart(
+        alt.Chart(mm).mark_bar().encode(
+            x=alt.X("count:Q", title="Meetings", axis=alt.Axis(format="d", tickMinStep=1)),
+            y=alt.Y("ca_name:N", sort="-x", title=None),
+            color=alt.Color("status:N", title=None, legend=None,
+                            scale=alt.Scale(domain=M_DOMAIN, range=M_RANGE)),
+            tooltip=["ca_name", "status", "count"],
+        ).properties(height=26 * n),
+        key="mtg_pick", fields=["ca_name", "status"])
+with mtg_l:
+    ui.legend_help([
+        ("held", "#A3BE8C", ui.DEFS["meetings_held"]),
+        ("Gong-held", "#6E8B3D", ui.DEFS["meetings_gong_verified"]),
+        ("scheduled", "#7DA0CA", ui.DEFS["meetings_scheduled"]),
+        ("canceled", "#CC7A6F", ui.DEFS["meetings_canceled"]),
+        ("unknown", "#6B7280", ui.DEFS["meetings_unknown"])])
 if picked:
     if picked["status"] in ("held (Gong-verified)", "unknown"):
         # the two halves of the split — DRILL_GONG_SPLIT mirrors the display rule
@@ -166,9 +176,6 @@ if picked:
                   {"start": start, "end": end, "rep": picked["ca_name"],
                    "channel": "meeting"},
                   key="mtg_card")
-st.caption("Unknown = no outcome logged and no Gong recording found. "
-           "Gong-verified = no outcome logged, but a completed Gong recording of the "
-           "meeting exists (same slot, same contact) — it demonstrably happened.")
 
 # --- new conversations vs follow-ups (Dillon rule, migration 006) -------------
 st.subheader("Meetings booked — new conversations vs follow-ups")
