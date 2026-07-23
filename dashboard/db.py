@@ -46,9 +46,38 @@ def _conn():
     return psycopg2.connect(_url(), connect_timeout=20)
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=180, show_spinner=False)
+def _data_version():
+    """A cheap token that changes ONLY when new data lands (the timestamp of
+    the latest successful ingestion run). The heavy query cache below is keyed
+    on it, so results stay cached until the nightly run refreshes data —
+    instead of a blind 5-min timer that made every few loads pay the full
+    ~20s rep_scorecard recompute. Re-checked at most every 3 min (~100ms)."""
+    conn = _conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("select max(finished_at) from ingestion_runs where status = 'ok'")
+            v = cur.fetchone()[0]
+        conn.rollback()
+    except psycopg2.OperationalError:
+        _conn.clear()
+        return "reconnect"                 # forces a fresh version next run
+    return str(v)
+
+
 def q(sql, params=None):
-    """Run a SELECT, return a DataFrame (Decimals -> floats for charting)."""
+    """Run a SELECT, return a DataFrame. Cached until the data version changes
+    (see _data_version) rather than on a fixed short timer — so repeat loads
+    within a day are instant, and the expensive views recompute once per
+    nightly refresh, not every 5 minutes."""
+    return _q(_data_version(), sql, params)
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def _q(version, sql, params):
+    # `version` is part of the cache key (no leading underscore, so it IS
+    # hashed) — a new ingestion run flips it and transparently invalidates
+    # every cached query. Decimals -> floats for charting.
     conn = _conn()
     try:
         with conn.cursor() as cur:

@@ -50,7 +50,7 @@ MEASURE_COLORS = {
 MEASURE_LABELS = {
     "auto_email": "Automated emails", "manual_email": "Manual emails",
     "emails": "Emails", "dials": "Dials", "pursuits": "Pursuits",
-    "conversations": "Conversations", "linkedin": "LinkedIn",
+    "conversations": "Conversations", "linkedin": "All LinkedIn",
     "inbound_replies": "Inbound replies", "meetings_booked": "Meetings booked",
     "meetings_new_stakeholder": "New-stakeholder meetings",
     "meetings_follow_up": "Follow-up meetings",
