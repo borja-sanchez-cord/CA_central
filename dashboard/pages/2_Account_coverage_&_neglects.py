@@ -63,12 +63,12 @@ st.dataframe(
         "owner_touched": st.column_config.NumberColumn(
             "They touched", help="Of those, how many they personally worked in this window."),
         "coverage_pct": st.column_config.NumberColumn(
-            "Coverage", format="%d%%", help="They touched / Owns."),
+            "Coverage", format="%d%%", help=ui.DEFS["coverage_pct"]),
     })
 st.caption(":grey[Note — coverage counts **every** owned account, including customers, open "
            "deals and recently lost/churned ones a CA may be right to leave alone. Unlike the "
            "neglected flag below, it is **not** deal-aware, so read a low % as a prompt to look, "
-           "not a verdict. (Whether open deals should count here is still open.)]")
+           "not a verdict.]")
 
 # --- neglected top-tier accounts -------------------------------------------------
 # Zero-touch accounts that are customers, mid-deal, or recently lost/churned
