@@ -225,9 +225,16 @@ evaluation time, not of the email alone. Your rulebook must specify:
      each normalization step (quoted-chain strip, signature strip, disclaimer,
      each merge-field blank, greeting strip) toggled on/off; AND the
      **similarity measure used to group emails into template families** —
-     likely the central knob. Test several FLAVORS, always computed on the
-     normalized core text, and let the corpus pick the winner (don't hard-code
-     one):
+     likely the central knob. Test several FLAVORS, and let the corpus pick
+     the winner (don't hard-code one). **CRITICAL PREREQUISITE:** any
+     similarity measure (especially char-%) computed on RAW bodies is broken —
+     the shared signature + legal disclaimer inflate it, and quoted reply
+     chains corrupt it both ways (two emails quoting the SAME original look
+     similar even when the new text differs; the SAME message quoting
+     different originals looks different). So the §3 strips (quoted chain,
+     signature, disclaimer, merge values) MUST run BEFORE the similarity is
+     computed, and the ablation must explicitly show that skipping a strip
+     degrades the measure. Flavors to test, all on the normalized core text:
        * character-level % identical (difflib ratio / Levenshtein) — catches
          merge-field templates cheaply, but fragile to sentence reordering and
          to a long dynamic/AI first line tanking the score;
