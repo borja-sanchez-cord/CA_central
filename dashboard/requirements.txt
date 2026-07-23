@@ -1,3 +1,7 @@
 # Dashboard v1 (Phase 7). Streamlit pulls in pandas + altair itself.
-streamlit>=1.38
-psycopg2-binary>=2.9
+# Pinned exactly: Streamlit Cloud freezes its env at first deploy and only
+# rebuilds when this file changes, so an open pin let the deployed sidebar DOM
+# drift from what the sidebar-logo CSS (dashboard/ui.py) was tuned against.
+# Bump deliberately after re-checking the logo/pill layout in the preview.
+streamlit==1.50.0
+psycopg2-binary==2.9.12
