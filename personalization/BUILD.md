@@ -27,6 +27,13 @@ confirms sign-off.
 5. Nightly full-corpus recompute (labels can legitimately flip
    Personalized→Templated as families grow; ~5% ever flip, 86% same-day).
    Display treatment: mark the most recent ~2 days provisional.
+6. **Corpus scope — cluster on everyone, display active-only.** Form template
+   families over the FULL corpus incl. departed CAs (9,140 emails: a template
+   a departed rep also sent must still count toward family size). But per-CA
+   and headline DISPLAY uses active CAs only (`ca_name in dim_ca where
+   is_active`), matching the rest of the dashboard — that's why the dashboard
+   Emails card shows 8,339 (= 9,140 − Will Sawyer's 801), not 9,140. Same
+   retain-in-model / hide-in-view split the scorecard already uses.
 
 ## Artifact map
 
