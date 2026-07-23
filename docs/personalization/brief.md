@@ -58,56 +58,27 @@ That is answerable from the email BODY TEXT, which we store in full
 The old auto/manual split will be KEPT (renamed "send method"); the new
 Personalized/Templated split will sit BESIDE it. You are designing the new one.
 
-## 3. What a mini-analysis already found (build on this, verify it, don't trust it blindly)
+## 3. What a 20-minute mini-analysis suggested (LEADS — verify, improve, or discard)
 
-A small-scale version of your job was run on the ~9,140 counted outbound
-emails (window 2026-07-06..07-22). Findings to replicate/refine:
+Hints from a quick look at the ~9,140 counted outbound emails
+(window 2026-07-06..07-22). NOT a method to follow — take what's useful,
+prove or drop the rest, design against what YOUR analysis finds.
 
-**Normalization pipeline that worked** (order matters):
-1. HTML → plain text.
-2. Cut the quoted reply chain: everything from the first "On <date/day>…
-   wrote:" marker. (44% of emails carry a quoted chain; without this cut,
-   one-line "just bumping this" follow-ups read as unique text.)
-3. Cut the signature block (sign-off markers: "best," "cheers," "thanks," etc.)
-   and the corporate legal disclaimer ("This email and any files transmitted
-   with it are confidential…"). The disclaimer measurably changed 0 labels
-   under the exact+opener rule, but strip it anyway for robustness.
-4. Blank merge-field VALUES we can identify from the contact/account record:
-   recipient first/last name, company name, job title. ALSO blank the greeting
-   name generically ("Hi <word>," → "hi N") because ~1% of contacts have no
-   name on file and their template copies leak to "unique" otherwise.
-5. Blank URLs, email addresses, digits; lowercase; collapse whitespace.
-   Result = the email's "core text".
-
-**Classification rule that emerged (v1 — a CANDIDATE, not gospel):**
-- Core text identical across **3+ recipients** → Templated (exact blast).
-- ELSE opening line (first ~60 chars of core text) shared by 3+ → Templated
-  (catches templates that diverge later or on an unstripped field — 23% of the
-  naive "personalized" pile were these).
-- ELSE → Personalized.
-
-**Do NOT assume this rule's knobs (3+, 60-char) are the parameters that
-matter.** They are the knobs of one candidate. Early evidence says the biggest
-levers are the NORMALIZATION choices, not the numeric thresholds: stripping the
-quoted reply chain moved **44%** of labels; the opener rule reclassified 23%;
-the greeting-name strip ~1%; the disclaimer strip **0%**. Which parameters are
-load-bearing is something you DISCOVER (§6), not assume.
-
-**Result at mini-scale:** 75% templated / 25% personalized. Manual read of 24
-stratified emails agreed with the hardened rule on all of them.
-
-**Known species observed in the data** (your taxonomy should cover these):
-1. Pure blasts (one text → 50-350 recipients).
-2. Merge-field templates ("Hi {name}, saw {company}…").
-3. Templates that personalize mid-body on unstripped fields (event name, a
-   colleague's name: "I met with Yufeng…" ×5).
-4. Generic bumps ("just bumping this in case it got buried") — near-zero
-   effort, textually semi-unique because of greeting/quoted-chain variation.
-5. Logistics/scheduling replies ("here are a few slots that work…") — unique
-   text but not personalized OUTREACH.
-6. Genuinely bespoke outreach (references the prospect's talk, panel, product,
-   move to Barcelona, "Tesla FSD or Optimus?").
-7. Event invites — semi-templated with venue/date variants.
+- **The hard part is the variation, not the matching.** Templates repeat, but
+  names/company/placeholders — sometimes a whole dynamic first line — change
+  per send. "The text differs → it's unique" is the trap to beat.
+- **Normalizing before comparing looked like the biggest lever** — cleaning
+  the text first (stripping quoted reply chains — ~44% of emails carry one and
+  it wrecks naive matching — signatures, the legal disclaimer, and neutralizing
+  merge fields) mattered more than any threshold. A lead, not a recipe.
+- **A crude rule got surprisingly far:** group by near-identical normalized
+  text, call it "templated" once a text hits ~3+ recipients → ~75% templated /
+  25% personalized, matching a hand-read of 24 emails. Treat 75/25 as a rough
+  prior, not a target.
+- **Species you'll likely meet** (so your taxonomy isn't caught off guard):
+  pure blasts; merge-field templates; templates with a dynamic/AI first line;
+  generic bumps ("just bumping this"); logistics/scheduling replies (unique
+  text, not personalized outreach); genuinely bespoke outreach; event invites.
 
 ## 4. Decisions the PM has ALREADY made (do not relitigate)
 
