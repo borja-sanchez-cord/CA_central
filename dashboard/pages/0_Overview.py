@@ -65,13 +65,38 @@ show["meetings_unknown"] = show.meetings_unknown - gong_col
 show = show[["ca_name"] + cols_int + ["coverage_pct"]].copy()
 for c in cols_int:
     show[c] = show[c].fillna(0).astype(int)
+# Coverage, deal-aware (display-side recompute from two approved surfaces —
+# the DB's rep_scorecard is untouched): denominator = owned accounts that are
+# WORKABLE today, i.e. no shield from migration 008 (customer / open deal /
+# resting after a recent loss or churn) — the same rule the neglected list
+# uses. Numbers sit higher than the old all-owned version by construction.
+own = ui.active_only(db.q(queries.OWNED_COVERAGE, (start, end)), col="owner_name")
+ds = db.q(queries.ACCOUNT_DEAL_STATUS)
+own = own.merge(ds[["account_id", "shield"]], on="account_id", how="left")
+wk = own[own.shield.isna()].copy()
+wk["touched"] = wk.owner_touches > 0
+cov = wk.groupby("owner_name").agg(n=("account_id", "size"), t=("touched", "sum"))
+show["coverage_pct"] = show.ca_name.map((100.0 * cov.t / cov.n).round(1))
+
+# Lean by default: the headline read. Depth (email auto/manual split, meeting
+# outcomes, territory detail) stays one click away — and in the charts below.
+show_all = st.toggle(
+    "Show all columns", key="sc_all",
+    help="Adds the auto/manual email split, meeting outcomes (canceled / "
+         "scheduled / unknown), People touched, Owned and Owned touched.")
+LEAN = ["total_counted", "emails", "dials", "pursuits", "conversations",
+        "linkedin", "inbound_replies", "meetings_booked",
+        "meetings_new_stakeholder", "meetings_held",
+        "accounts_touched", "coverage_pct"]
+visible = (cols_int + ["coverage_pct"]) if show_all else LEAN
 # direction-aware: canceled/unlogged meetings are BAD when high; owning more
 # accounts is neither good nor bad, so it stays unshaded.
-good = [c for c in cols_int + ["coverage_pct"]
+good = [c for c in visible
         if c not in ("meetings_canceled", "meetings_unknown", "accounts_owned")]
-bad = ["meetings_canceled", "meetings_unknown"]
+bad = [c for c in visible if c in ("meetings_canceled", "meetings_unknown")]
 st.dataframe(
-    ui.heat_styler(show, good, bad), hide_index=True, use_container_width=True, height=640,
+    ui.heat_styler(show[["ca_name"] + visible], good, bad),
+    hide_index=True, use_container_width=True, height=640,
     column_config={
         "ca_name": st.column_config.TextColumn("CA", pinned=True),
         "total_counted": st.column_config.NumberColumn("Activities", help=ui.DEFS["total_counted"]),
@@ -80,7 +105,7 @@ st.dataframe(
         "emails": st.column_config.NumberColumn("Emails", help=ui.DEFS["emails"]),
         "dials": st.column_config.NumberColumn("Dials", help=ui.DEFS["dials"]),
         "pursuits": st.column_config.NumberColumn("Pursuits", help=ui.DEFS["pursuits"]),
-        "conversations": st.column_config.NumberColumn("Convos", help=ui.DEFS["conversations"]),
+        "conversations": st.column_config.NumberColumn("Connected dials", help=ui.DEFS["conversations"]),
         "linkedin": st.column_config.NumberColumn("LinkedIn", help=ui.DEFS["linkedin"]),
         "inbound_replies": st.column_config.NumberColumn("Inbound", help=ui.DEFS["inbound_replies"]),
         "other_outreach": st.column_config.NumberColumn("Other", help=ui.DEFS["other"]),
@@ -147,7 +172,7 @@ mtg_c, mtg_l = st.columns([6, 1])
 with mtg_c:
     picked = ui.drill_chart(
         alt.Chart(mm).mark_bar().encode(
-            x=alt.X("count:Q", title="Meetings", axis=alt.Axis(format="d", tickMinStep=1)),
+            x=alt.X("count:Q", title="Meetings booked", axis=alt.Axis(format="d", tickMinStep=1)),
             y=alt.Y("ca_name:N", sort="-x", title=None),
             color=alt.Color("status:N", title=None, legend=None,
                             scale=alt.Scale(domain=M_DOMAIN, range=M_RANGE)),
@@ -188,7 +213,7 @@ BUCKET_LBL = {"meetings_new_stakeholder": "new stakeholder",
 bl["bucket"] = bl.bucket.map(BUCKET_LBL)
 picked = ui.drill_chart(
     alt.Chart(bl).mark_bar().encode(
-        x=alt.X("count:Q", title="Meetings"),
+        x=alt.X("count:Q", title="Meetings booked"),
         y=alt.Y("ca_name:N", sort="-x", title=None),
         color=alt.Color("bucket:N", title=None,
                         scale=alt.Scale(domain=["new stakeholder", "follow-up",
