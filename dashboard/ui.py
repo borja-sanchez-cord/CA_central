@@ -78,6 +78,7 @@ DEFS = {
     "other_outreach": "Sequence steps of unrecognised type (could be WhatsApp, research, anything).",
     "meetings_booked": "Every meeting booked in the window (not held). Most now have a known outcome — the rep marked it, or Gong verified it; the rest stay unknown. Read with the held / Gong-held / canceled / unknown split.",
     "meetings_held": "The rep marked the meeting as happened in HubSpot.",
+    "meetings_held_any": "Meeting happened — the rep marked it held, or a Gong recording proves it did.",
     "meetings_canceled": "The rep marked the meeting as canceled in HubSpot.",
     "meetings_scheduled": "Upcoming — marked scheduled or rescheduled in HubSpot.",
     "meetings_unknown": "No outcome logged and no Gong recording — so we can't tell if it happened. NOT the same as a no-show.",

@@ -51,14 +51,17 @@ st.subheader("Every CA, side by side")
 cols_int = ["total_counted", "auto_email", "manual_email", "emails", "dials",
             "pursuits", "conversations", "linkedin", "inbound_replies", "other_outreach",
             "meetings_booked", "meetings_new_stakeholder", "meetings_held",
-            "meetings_gong_verified", "meetings_canceled", "meetings_scheduled",
+            "meetings_canceled", "meetings_scheduled",
             "meetings_unknown", "accounts_touched", "contacts_touched",
             "accounts_owned", "owned_touched"]
-# display-only merge of approved surfaces (nothing recomputed). Gong-held is a
-# SUBSET of Mtg unknown, so unknown here shows the remainder — matching the bar.
+# display-only merge of approved surfaces (nothing recomputed). Gong-verified
+# meetings demonstrably happened, so fold them into 'held' (rep marked it OR
+# Gong proved it); both are carved out of 'unknown'. held + canceled +
+# scheduled + unknown still sums to booked — same reconciliation as the bar.
 show = sc.merge(mb[["ca_name", "meetings_new_stakeholder"]], on="ca_name", how="left")
-show["meetings_gong_verified"] = show.ca_name.map(gv_by_ca).fillna(0).astype(int)
-show["meetings_unknown"] = show.meetings_unknown - show.meetings_gong_verified
+gong_col = show.ca_name.map(gv_by_ca).fillna(0).astype(int)
+show["meetings_held"] = show.meetings_held + gong_col
+show["meetings_unknown"] = show.meetings_unknown - gong_col
 show = show[["ca_name"] + cols_int + ["coverage_pct"]].copy()
 for c in cols_int:
     show[c] = show[c].fillna(0).astype(int)
@@ -66,7 +69,6 @@ for c in cols_int:
 # accounts is neither good nor bad, so it stays unshaded.
 good = [c for c in cols_int + ["coverage_pct"]
         if c not in ("meetings_canceled", "meetings_unknown", "accounts_owned")]
-# (meetings_gong_verified shades as good — a verified-held is a good outcome)
 bad = ["meetings_canceled", "meetings_unknown"]
 st.dataframe(
     ui.heat_styler(show, good, bad), hide_index=True, use_container_width=True, height=640,
@@ -84,9 +86,7 @@ st.dataframe(
         "other_outreach": st.column_config.NumberColumn("Other", help=ui.DEFS["other"]),
         "meetings_booked": st.column_config.NumberColumn("Mtg booked", help=ui.DEFS["meetings_booked"]),
         "meetings_new_stakeholder": st.column_config.NumberColumn("New meetings", help=ui.DEFS["meetings_new_stakeholder"]),
-        "meetings_held": st.column_config.NumberColumn("Mtg held", help=ui.DEFS["meetings_held"]),
-        "meetings_gong_verified": st.column_config.NumberColumn(
-            "Mtg Gong-held", help=ui.DEFS["meetings_gong_verified"]),
+        "meetings_held": st.column_config.NumberColumn("Mtg held", help=ui.DEFS["meetings_held_any"]),
         "meetings_canceled": st.column_config.NumberColumn("Mtg canceled", help=ui.DEFS["meetings_canceled"]),
         "meetings_scheduled": st.column_config.NumberColumn("Mtg sched", help=ui.DEFS["meetings_scheduled"]),
         "meetings_unknown": st.column_config.NumberColumn("Mtg unknown", help=ui.DEFS["meetings_unknown"]),
