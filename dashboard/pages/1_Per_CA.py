@@ -29,7 +29,17 @@ m_new = int(mb_row.iloc[0].meetings_new_stakeholder) if len(mb_row) else 0
 gv = db.q(queries.GONG_VERIFIED, (start, end))
 gv_rep = int(gv[gv.ca_name == rep].gong_verified.sum()) if len(gv) else 0
 
-cov_pct = 0 if pd.isna(r.coverage_pct) else r.coverage_pct
+# Coverage, deal-aware — same display-side recompute as Team overview: only
+# WORKABLE owned accounts count (no shield from migration 008: customer /
+# open deal / resting after a recent loss or churn). rep_scorecard untouched.
+own = db.q(queries.OWNED_COVERAGE, (start, end))
+own = own[own.owner_name == rep].merge(
+    db.q(queries.ACCOUNT_DEAL_STATUS)[["account_id", "shield"]],
+    on="account_id", how="left")
+wk_own = own[own.shield.isna()]
+n_workable = len(wk_own)
+n_touched = int((wk_own.owner_touches > 0).sum())
+cov_pct = (100.0 * n_touched / n_workable) if n_workable else 0
 ui.kpi_row([
     {"label": "Activities", "value": int(r.total_counted),
      "help": ui.DEFS["total_counted"]},
@@ -52,7 +62,7 @@ ui.kpi_row([
      "sub": "of %d booked" % int(r.meetings_booked),
      "help": ui.DEFS["meetings_new_stakeholder"]},
     {"label": "Coverage", "value": "%.0f%%" % cov_pct,
-     "sub": "%d touched out of %d owned" % (r.owned_touched, r.accounts_owned),
+     "sub": "%d touched out of %d workable" % (n_touched, n_workable),
      "help": ui.DEFS["coverage_pct"]},
 ])
 st.write("")

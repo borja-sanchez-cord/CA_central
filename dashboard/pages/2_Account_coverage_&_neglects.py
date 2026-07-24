@@ -47,7 +47,12 @@ ds = db.q(queries.ACCOUNT_DEAL_STATUS)
 cov = cov.merge(ds, on="account_id", how="left")
 t01 = cov[(cov.icp_tier.isin(["Tier 0", "Tier 1"])) & (cov.team_touches == 0)]
 
-per_rep = cov.groupby("owner_name").agg(
+# Coverage is deal-aware (Dillon, Jul 2026): only WORKABLE accounts count —
+# a shield (customer / open deal / resting after a recent loss or churn)
+# excludes the account from BOTH sides of the ratio. Same rule as the
+# neglected flag below and the same recompute Team overview uses.
+workable = cov[cov.shield.isna()]
+per_rep = workable.groupby("owner_name").agg(
     owned=("account_name", "count"),
     owner_touched=("owner_touches", lambda s: int((s > 0).sum())),
 ).reset_index()
@@ -59,16 +64,15 @@ st.dataframe(
     column_config={
         "owner_name": st.column_config.TextColumn("Owner (CA)", pinned=True),
         "owned": st.column_config.NumberColumn(
-            "Owns", help="Accounts where this CA is the HubSpot target-account owner."),
+            "Workable", help="Owned accounts this CA could work today — customers, "
+                             "open deals and recently lost/churned excluded."),
         "owner_touched": st.column_config.NumberColumn(
             "They touched", help="Of those, how many they personally worked in this window."),
         "coverage_pct": st.column_config.NumberColumn(
             "Coverage", format="%d%%", help=ui.DEFS["coverage_pct"]),
     })
-st.caption(":grey[Note — coverage counts **every** owned account, including customers, open "
-           "deals and recently lost/churned ones a CA may be right to leave alone. Unlike the "
-           "neglected flag below, it is **not** deal-aware, so read a low % as a prompt to look, "
-           "not a verdict.]")
+st.caption(":grey[Coverage is deal-aware — same rule as the neglected flag below: customers, "
+           "open deals and recently lost/churned accounts count on neither side of the ratio.]")
 
 # --- neglected top-tier accounts -------------------------------------------------
 # Zero-touch accounts that are customers, mid-deal, or recently lost/churned

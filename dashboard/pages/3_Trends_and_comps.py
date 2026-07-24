@@ -13,10 +13,14 @@ first, last = ui.setup(
     "Trends and comps",
     "Week-by-week movement of any measure, and CA-vs-CA comparison.")
 
+# coverage_pct is deliberately NOT offered here: its weekly numbers would come
+# from the old all-owned math while every other page now shows deal-aware
+# (workable-only) coverage — one word, one meaning. It can return if a
+# per-week workable recompute ever proves worth the extra queries.
 MEASURES = ["total_counted", "emails", "auto_email", "manual_email", "dials",
             "pursuits", "conversations", "linkedin", "inbound_replies",
             "meetings_booked", "meetings_new_stakeholder", "meetings_follow_up",
-            "accounts_touched", "contacts_touched", "coverage_pct"]
+            "accounts_touched", "contacts_touched"]
 
 win = st.pills("Weeks", ["Last 4 weeks", "Last 12 weeks", "All weeks"],
                default="All weeks", key="trend_weeks", label_visibility="collapsed")
@@ -48,12 +52,9 @@ if not sel:
 order = [w for w in wk.sort_values("week_start").week.unique()]
 frames = []
 if TEAM in sel:
-    if measure == "coverage_pct":
-        st.info("Coverage % is per-CA — a team average would mislead. Pick CAs instead.")
-    else:
-        team = wk.groupby(["week", "week_start"], as_index=False)[measure].sum()
-        team["who"] = TEAM
-        frames.append(team)
+    team = wk.groupby(["week", "week_start"], as_index=False)[measure].sum()
+    team["who"] = TEAM
+    frames.append(team)
 for name in [s for s in sel if s != TEAM]:
     one = wk[wk.ca_name == name][["week", "week_start", measure]].copy()
     one["who"] = name
